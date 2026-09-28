@@ -1,0 +1,265 @@
+.spa-button {
+  --spa-button-chamfer: 19px;
+  --spa-button-fill: #0f172a;
+  --spa-button-edge: transparent;
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 220px;
+  height: 46px;
+  gap: 12px;
+  padding: 0 56px 0 28px;
+  color: #ffffff;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+  text-decoration: none;
+  border: 0;
+  border-radius: 0;
+  background: var(--spa-button-fill);
+  clip-path: polygon(
+    var(--spa-button-chamfer) 0%,
+    100% 0%,
+    100% calc(100% - var(--spa-button-chamfer)),
+    calc(100% - var(--spa-button-chamfer)) 100%,
+    0% 100%,
+    0% var(--spa-button-chamfer)
+  );
+  cursor: pointer;
+  appearance: none;
+  filter: drop-shadow(0 6px 14px rgb(0 0 0 / 0.25));
+  transition:
+    transform 180ms ease,
+    filter 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.spa-button::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  pointer-events: none;
+  clip-path: inherit;
+  box-shadow: inset 0 0 0 1px var(--spa-button-edge);
+}
+
+.spa-button::after {
+  content: "";
+  position: absolute;
+  right: 15px;
+  top: 50%;
+  width: 5px;
+  height: 28px;
+  transform: translateY(-50%) skewX(-22deg);
+  background: var(--button-accent);
+  pointer-events: none;
+}
+
+.spa-button__content {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.spa-button__icon,
+.spa-button__arrow {
+  position: relative;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.spa-button__arrow {
+  font-size: 1rem;
+  line-height: 1;
+  transition: transform 180ms ease;
+}
+
+.spa-button__arrow svg {
+  width: 1em;
+  height: 1em;
+}
+
+.spa-button__label {
+  white-space: nowrap;
+}
+
+.spa-button__spinner {
+  display: inline-flex;
+  width: 1em;
+  height: 1em;
+  border: 2px solid rgb(255 255 255 / 0.3);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spa-button-spin 700ms linear infinite;
+}
+
+@keyframes spa-button-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spa-button:hover {
+  transform: translateY(-1px);
+}
+
+.spa-button:hover .spa-button__arrow {
+  transform: translateX(4px);
+}
+
+.spa-button:active {
+  transform: translateY(1px);
+}
+
+.spa-button:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 4px;
+}
+
+.spa-button:disabled,
+.spa-button[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.45;
+  transform: none;
+}
+
+.spa-button--loading {
+  cursor: progress;
+}
+
+.spa-button--loading,
+.spa-button--loading:hover,
+.spa-button--loading:active {
+  transform: none;
+}
+
+.spa-button--sm {
+  --spa-button-chamfer: 16px;
+  height: 40px;
+  font-size: 0.75rem;
+}
+
+.spa-button--md {
+  --spa-button-chamfer: 19px;
+  height: 46px;
+}
+
+.spa-button--lg {
+  --spa-button-chamfer: 22px;
+  height: 52px;
+  font-size: 0.875rem;
+}
+
+.spa-button--block {
+  display: flex;
+  width: 100%;
+}
+
+.spa-button--primary {
+  --spa-button-fill: #2563eb;
+  --spa-button-edge: rgb(255 255 255 / 0.22);
+  filter: drop-shadow(0 8px 16px rgb(0 0 0 / 0.35));
+}
+.spa-button--primary::before {
+  inset: 3px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.22);
+}
+/* A lighter rail than the fill, so the primary keeps the same defining diagonal
+   edge as the technical and ai variants instead of reading as a flat block. */
+.spa-button--primary::after {
+  right: 14px;
+  width: 7px;
+  height: 34px;
+  background: rgb(255 255 255 / 0.9);
+}
+
+.spa-button--primary:hover {
+  --spa-button-fill: #3b82f6;
+  filter: drop-shadow(0 10px 20px rgb(59 130 246 / 0.25));
+}
+.spa-button--primary:active {
+  --spa-button-fill: #1d4ed8;
+}
+
+.spa-button--technical {
+  --spa-button-fill: #0f172a;
+  --spa-button-edge: rgb(148 163 184 / 0.55);
+  box-shadow: inset 0 0 0 1px rgb(148 163 184 / 0.55);
+}
+
+.spa-button--technical::before {
+  inset: 2px;
+  box-shadow: inset 0 0 0 1px rgb(59 130 246 / 0.28);
+}
+
+.spa-button--technical::after {
+  right: 14px;
+  height: 28px;
+  opacity: 0.7;
+}
+
+.spa-button--technical:hover {
+  --spa-button-fill: #1f2937;
+  box-shadow: inset 0 0 0 1px rgb(59 130 246 / 0.75);
+  filter: drop-shadow(0 8px 16px rgb(59 130 246 / 0.12));
+}
+
+.spa-button--technical:active {
+  --spa-button-fill: #0b1220;
+}
+
+.spa-button--ai {
+  --spa-button-fill: #0f172a;
+  --spa-button-edge: rgb(59 130 246 / 0.9);
+  box-shadow: inset 0 0 0 1px rgb(59 130 246 / 0.9);
+  filter:
+    drop-shadow(0 0 10px rgb(59 130 246 / 0.14))
+    drop-shadow(0 6px 16px rgb(0 0 0 / 0.3));
+}
+
+.spa-button--ai::before {
+  inset: 3px;
+  box-shadow: inset 0 0 0 1px rgb(59 130 246 / 0.35);
+}
+
+.spa-button--ai::after {
+  right: 14px;
+  height: 28px;
+  opacity: 0.9;
+}
+
+.spa-button--ai:hover {
+  --spa-button-fill: #111d33;
+  box-shadow:
+    inset 0 0 0 1px #3b82f6,
+    0 0 18px rgb(59 130 246 / 0.18);
+  filter:
+    drop-shadow(0 0 14px rgb(59 130 246 / 0.2))
+    drop-shadow(0 8px 18px rgb(0 0 0 / 0.3));
+}
+
+.spa-button--ai:active {
+  --spa-button-fill: #0b1220;
+  box-shadow: inset 0 0 0 1px rgb(59 130 246 / 0.8);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spa-button,
+  .spa-button__arrow,
+  .spa-button__spinner {
+    transition: none;
+    animation: none;
+  }
+}

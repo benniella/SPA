@@ -1,0 +1,259 @@
+:root {
+  --palette-ink-900: #090a0b; /* background */
+  --palette-ink-800: #0e1012; /* sunken surface / video letterbox */
+  --palette-ink-700: #151719; /* surface */
+  --palette-ink-600: #1b1e21; /* surface-elevated */
+  --palette-ink-500: #23272b; /* surface-interactive */
+
+  --palette-line-600: #292d31; /* border */
+  --palette-line-500: #383d43; /* border-strong */
+
+  --palette-mist-050: #f5f5f5; /* primary text */
+  --palette-mist-300: #a5abb2; /* secondary text */
+  --palette-mist-500: #737a82; /* faint text — large text and hairlines only */
+
+  --palette-green-500: #19e68c; /* accent */
+  --palette-green-600: #00b96b; /* secondary accent */
+  --palette-green-300: #7ff0bd; /* success text on dark */
+
+  --palette-amber-400: #f0b429; /* warning */
+  --palette-red-400: #ff5c5c; /* danger */
+  --palette-blue-400: #4da3ff; /* info */
+
+  /* The primary blue. '500' is the approved resting value '#3b82f6'; '400' and
+     '600' are the derived hover and pressed values.
+
+     '#3b82f6' against white is 3.68:1, below the 4.5:1 AA minimum for the button's
+     text size. The approved pair is implemented as specified; moving the fill to
+     '#2563eb' (5.17:1) is the fix if the label contrast becomes a requirement.
+     Hover darkens so the label contrast improves rather than degrades. */
+  --palette-sport-blue-600: #2563eb;
+  --palette-sport-blue-500: #3b82f6;
+  --palette-sport-blue-400: #2f6fe4;
+}
+
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-background: var(--palette-ink-900);
+  --color-background-sunken: var(--palette-ink-800);
+  --color-surface: var(--palette-ink-700);
+  --color-surface-elevated: var(--palette-ink-600);
+  --color-surface-interactive: var(--palette-ink-500);
+
+  --color-foreground: var(--palette-mist-050);
+  --color-foreground-muted: var(--palette-mist-300);
+  --color-foreground-faint: var(--palette-mist-500);
+
+  --color-accent: var(--palette-green-500);
+  --color-accent-secondary: var(--palette-green-600);
+  --color-accent-foreground: var(--palette-ink-900);
+
+  --color-border: var(--palette-line-600);
+  --color-border-strong: var(--palette-line-500);
+
+  --color-success: var(--palette-green-300);
+  --color-warning: var(--palette-amber-400);
+  --color-danger: var(--palette-red-400);
+  --color-info: var(--palette-blue-400);
+
+  --color-overlay: rgb(9 10 11 / 0.72);
+
+  --color-accent-subtle: color-mix(in oklab, var(--color-accent) 12%, transparent);
+  --color-accent-line: color-mix(in oklab, var(--color-accent) 38%, transparent);
+
+  --color-focus-ring: var(--color-accent);
+  --color-selection: color-mix(in oklab, var(--color-accent) 30%, transparent);
+
+  --button-accent: var(--palette-sport-blue-500);
+  --button-accent-strong: var(--palette-sport-blue-400);
+  --button-accent-deep: var(--palette-sport-blue-600);
+  --button-accent-foreground: #ffffff;
+
+  --viz-surface: #0e1012;
+  --viz-grid: #23272b;
+  --viz-line: #383d43;
+  --viz-pitch-far: #16351f;
+  --viz-pitch-near: #0f2717;
+  --viz-pitch-mark: #cfe8d5;
+  --viz-player: #dfe7e2;
+  --background: var(--color-background);
+  --foreground: var(--color-foreground);
+  --muted: var(--color-surface);
+  --muted-foreground: var(--color-foreground-muted);
+  --border: var(--color-border);
+  --primary: var(--color-accent);
+  --primary-foreground: var(--color-accent-foreground);
+  --success: var(--color-success);
+  --warning: var(--color-warning);
+  --destructive: var(--color-danger);
+  --radius: var(--radius-md);
+}
+
+/* Light theme. */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --color-background: #fbfbfc;
+  --color-background-sunken: #f1f2f4;
+  --color-surface: #f5f6f7;
+  --color-surface-elevated: #ffffff;
+  --color-surface-interactive: #e8eaec;
+
+  --color-foreground: #0c0d0e;
+  --color-foreground-muted: #4b5157;
+  --color-foreground-faint: #6f767d;
+
+  --color-accent: var(--palette-green-600);
+  --color-accent-secondary: #008a4e;
+  --color-accent-foreground: #06251a;
+
+  --color-border: #dcdfe2;
+  --color-border-strong: #b9bfc5;
+
+  --color-success: #0a7043;
+  --color-warning: #8a5a00;
+  --color-danger: #b52020;
+  --color-info: #14559c;
+
+  --color-overlay: rgb(9 10 11 / 0.55);
+  --color-accent-subtle: color-mix(in oklab, var(--color-accent) 9%, transparent);
+  --color-accent-line: color-mix(in oklab, var(--color-accent) 32%, transparent);
+  --color-selection: color-mix(in oklab, var(--color-accent) 20%, transparent);
+
+  --button-accent: var(--palette-sport-blue-500);
+  --button-accent-strong: var(--palette-sport-blue-400);
+  --button-accent-deep: var(--palette-sport-blue-600);
+  --button-accent-foreground: #ffffff;
+
+  --background: var(--color-background);
+  --foreground: var(--color-foreground);
+  --muted: var(--color-surface);
+  --muted-foreground: var(--color-foreground-muted);
+  --border: var(--color-border);
+  --primary: var(--color-accent);
+  --primary-foreground: var(--color-accent-foreground);
+  --success: var(--color-success);
+  --warning: var(--color-warning);
+  --destructive: var(--color-danger);
+  --radius: var(--radius-md);
+
+  --viz-surface: #eef0f2;
+  --viz-grid: #ced3d8;
+  --viz-line: #a8afb6;
+  --viz-pitch-far: #7fb98f;
+  --viz-pitch-near: #5c9c6f;
+  --viz-pitch-mark: #f2fbf4;
+  --viz-player: #1f2a24;
+}
+
+:root {
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 2.5rem;
+  --space-8: 3rem;
+  --space-9: 4rem;
+  --space-10: 5rem;
+  --space-11: 6.5rem;
+
+  --section-padding-block: var(--space-9);
+  --section-gap: var(--space-8);
+
+  --radius-none: 0;
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-pill: 999px;
+
+  --font-display:
+    var(--font-space-grotesk), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    sans-serif;
+  --font-sans:
+    var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono:
+    var(--font-ibm-plex-mono), ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  --font-size-display: clamp(2.25rem, 1.15rem + 4.6vw, 4.25rem);
+  --font-size-h1: clamp(1.875rem, 1.1rem + 2.9vw, 3rem);
+  --font-size-h2: clamp(1.5rem, 1.15rem + 1.6vw, 2.125rem);
+  --font-size-h3: clamp(1.25rem, 1.1rem + 0.7vw, 1.5rem);
+  --font-size-h4: 1.0625rem;
+  --font-size-lede: clamp(1rem, 0.95rem + 0.35vw, 1.1875rem);
+  --font-size-body: 0.9375rem;
+  --font-size-small: 0.8125rem;
+  --font-size-label: 0.75rem;
+  --font-size-micro: 0.6875rem;
+  --font-size-metric: clamp(1.5rem, 1.2rem + 1.1vw, 2rem);
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --leading-tight: 1.05;
+  --leading-snug: 1.2;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+
+  --tracking-display: -0.03em;
+  --tracking-heading: -0.02em;
+  --tracking-normal: 0;
+  --tracking-label: 0.08em;
+  --tracking-wide: 0.14em;
+
+  /* Layout */
+  --layout-max: 80rem;
+  --layout-max-narrow: 48rem;
+  --gutter: 1.25rem;
+  --header-height: 4rem;
+  --measure: 68ch;
+
+  /* Component heights */
+  --control-height-sm: 2rem;
+  --control-height-md: 2.5rem;
+  --control-height-lg: 3.25rem;
+  --control-height-xl: 3.5rem;
+
+  --button-bevel: 0.875rem;
+  --button-notch: 0.375rem;
+  --button-slash-width: 0.25rem;
+
+  --duration-instant: 80ms;
+  --duration-fast: 140ms;
+  --duration-base: 220ms;
+  --duration-slow: 420ms;
+  --duration-reveal: 620ms;
+
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* Focus. One hairline ring, in the accent, offset off the control: thick enough to
+     see against a dark surface and around a control's own border, thin enough not to
+     read as part of the control's own edge. */
+  --focus-ring-width: 1px;
+  --focus-ring-offset: 2px;
+}
+
+/* Breakpoints: 40rem (tablet), 64rem (desktop), 48rem where a grid has five or more columns. */
+@media (min-width: 40rem) {
+  :root {
+    --gutter: 2rem;
+    --section-padding-block: var(--space-10);
+  }
+}
+
+@media (min-width: 64rem) {
+  :root {
+    --gutter: 2.5rem;
+    --section-padding-block: var(--space-11);
+  }
+}

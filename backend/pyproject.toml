@@ -1,0 +1,135 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "spa-backend"
+version = "0.0.0"
+description = "SPA — Sport Performance Analysis API"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    # Required by 'EmailStr' in the user schemas. Declared explicitly so the API
+    # module import cannot fail on a missing optional dependency.
+    "email-validator>=2.2",
+    # The [asyncio] extra pulls in greenlet, which SQLAlchemy's async ORM requires.
+    # Declaring it explicitly (rather than relying on it arriving transitively) means
+    # a fresh install cannot fail at import time on a missing optional dependency.
+    "sqlalchemy[asyncio]>=2.0.36,<2.2",
+    "alembic>=1.14",
+    "psycopg[binary]>=3.2",
+    "python-multipart>=0.0.20",
+    # KeyDB speaks the Redis protocol; this is the client for the job queue and
+    # WebSocket fan-out. KeyDB, not Redis, is the chosen server (see
+    # docs/architecture/video-processing.md).
+    "redis>=5.2",
+    # The worker runs the CV pipeline, which lives in 'ml/' and decodes video
+    # frames with OpenCV. Pinned below 5.x: OpenCV 5 removed the HOG descriptor
+    # API the built-in person detector uses.
+    "opencv-python-headless>=4.10,<5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    # pytest-asyncio provides the async test runner. Declared explicitly rather
+    # than relying on 'asyncio_mode = auto' being configured later.
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    # Runs the ASGI lifespan during tests, so adapters built at startup actually
+    # exist when a request needs them.
+    "asgi-lifespan>=2.1",
+    "httpx>=0.28",
+    "ruff>=0.8",
+    "mypy>=1.13",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.hatch.build.targets.wheel.sources]
+# The 'ml' package lives beside 'backend/' in the repository, not inside it.
+# Declaring it as an extra source means the installed backend can import 'ml'
+# without vendoring a copy into 'backend/'.
+"ml" = "../ml"
+
+# Ruff linter and formatter.
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+    "TID", # flake8-tidy-imports
+    "RUF", # ruff-specific
+]
+ignore = [
+    "B008", # FastAPI's Depends() in defaults is the documented pattern
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Migration bodies are long by nature (explicit constraint and index names).
+"migrations/versions/*" = ["E501"]
+# Test files contain long SQL string literals and multi-line assertions where
+# mechanical wrapping hurts readability more than it helps.
+"tests/**" = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+# Mypy type checking.
+[tool.mypy]
+python_version = "3.11"
+# Domain and application layers are intended to be fully typed; enforcement is
+# phased in per-module rather than globally from day one.
+files = ["app"]
+exclude = ["migrations"]
+check_untyped_defs = true
+disallow_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+show_error_codes = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["alembic.*", "app.infrastructure.database.base"]
+ignore_errors = true
+
+# Pytest configuration.
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# '..' makes the repository's 'ml/' package importable, so the CV pipeline and
+# its tests resolve the same code the worker runs rather than a vendored copy.
+pythonpath = [".", ".."]
+# 'auto' mode: an 'async def' test is an async test. Without this, every async
+# test needs an explicit marker, and forgetting one silently skips the test.
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-ra --strict-markers -m 'not integration'"
+markers = [
+    "integration: tests that require a running PostgreSQL instance",
+]
+filterwarnings = ["error::DeprecationWarning:app.*"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/main.py"]

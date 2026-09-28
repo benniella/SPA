@@ -1,0 +1,589 @@
+/* Application shell. */
+
+.app-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 100dvh;
+}
+
+/* Topbar */
+
+.app-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  height: var(--header-height);
+  border-bottom: 1px solid var(--color-border);
+  background-color: color-mix(in oklab, var(--color-background) 88%, transparent);
+  backdrop-filter: blur(12px);
+  padding-inline: var(--gutter);
+}
+
+.app-topbar-start {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.app-topbar-brand {
+  display: none;
+}
+
+.app-topbar-title {
+  min-width: 0;
+}
+
+.app-topbar-page {
+  font-family: var(--font-display);
+  font-size: var(--font-size-h4);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-heading);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-topbar-end {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.app-topbar-env {
+  display: none;
+}
+
+/* Sidebar */
+
+.app-sidebar {
+  display: none;
+}
+
+.app-sidebar-group {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.app-sidebar-divider {
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  margin-block: var(--space-5);
+}
+
+.app-nav-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 38px;
+  border-radius: var(--radius-sm);
+  padding-inline: var(--space-3);
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-foreground-muted);
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.app-nav-link:hover {
+  background-color: var(--color-surface);
+  color: var(--color-foreground);
+}
+
+/* Active state: accent rule, weight change and colour change together. */
+.app-nav-link[data-active="true"] {
+  background-color: var(--color-surface);
+  color: var(--color-foreground);
+  font-weight: var(--font-weight-semibold);
+}
+
+.app-nav-link[data-active="true"]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 25%;
+  bottom: 25%;
+  width: 2px;
+  background-color: var(--color-accent);
+}
+
+.app-nav-link svg {
+  flex: 0 0 auto;
+  color: currentColor;
+}
+
+.app-nav-link[data-active="true"] svg {
+  color: var(--color-accent);
+}
+
+.app-nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-sidebar-collapse {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  background: transparent;
+  padding: var(--space-4) var(--space-3) 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-micro);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-foreground-faint);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+/* The mark is the icon on its own: no tile, border or background behind it. */
+.app-sidebar-collapse-icon {
+  display: inline-flex;
+  align-items: center;
+  color: currentColor;
+}
+
+.app-sidebar-collapse:hover {
+  color: var(--color-foreground);
+}
+
+/* The collapsed rail keeps the icons and drops the labels. */
+.app-sidebar[data-collapsed="true"] .app-nav-label,
+.app-sidebar[data-collapsed="true"] .app-sidebar-collapse-label {
+  display: none;
+}
+
+.app-sidebar[data-collapsed="true"] .app-nav-link,
+.app-sidebar[data-collapsed="true"] .app-sidebar-collapse {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+/* Mobile bottom bar */
+
+.app-mobile-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  border-top: 1px solid var(--color-border);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  background-color: color-mix(in oklab, var(--color-background) 96%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.app-mobile-nav-list {
+  display: flex;
+  align-items: stretch;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.app-mobile-nav-list::-webkit-scrollbar {
+  display: none;
+}
+
+.app-mobile-nav-list > li {
+  flex: 1 0 auto;
+  min-width: 4.25rem;
+}
+
+.app-mobile-nav-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  width: 100%;
+  min-height: 52px;
+  border: 0;
+  background: transparent;
+  padding: var(--space-2) var(--space-1);
+  color: var(--color-foreground-muted);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.app-mobile-nav-link[data-active="true"] {
+  color: var(--color-foreground);
+}
+
+.app-mobile-nav-link[data-active="true"] svg {
+  color: var(--color-accent);
+}
+
+/* Underline as well as colour, so the active destination is marked by shape. */
+.app-mobile-nav-link[data-active="true"] .app-mobile-nav-label {
+  box-shadow: inset 0 -2px 0 0 var(--color-accent);
+}
+
+.app-mobile-nav-label {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-micro);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.app-mobile-sheet {
+  position: absolute;
+  bottom: calc(100% + 1px);
+  right: var(--gutter);
+  width: min(24rem, calc(100vw - 2 * var(--gutter)));
+  border: 1px solid var(--color-border-strong);
+  border-bottom: 2px solid var(--color-accent);
+  background-color: var(--color-surface-elevated);
+  box-shadow: 0 18px 36px -20px rgb(0 0 0 / 0.7);
+  padding: var(--space-3);
+  text-align: left;
+  z-index: 1;
+}
+
+.app-mobile-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  border: 0;
+  background-color: rgb(8 14 22 / 0.78);
+  cursor: default;
+}
+
+.app-mobile-sheet-heading {
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-2) var(--space-2) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-micro);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-foreground-faint);
+}
+
+.app-mobile-sheet-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  border-bottom: 1px solid var(--color-border);
+  padding-inline: var(--space-2);
+  font-size: var(--font-size-small);
+  color: var(--color-foreground-muted);
+}
+
+.app-mobile-sheet li:last-child .app-mobile-sheet-link {
+  border-bottom: 0;
+}
+
+.app-mobile-sheet-link:hover {
+  background-color: var(--color-surface);
+  color: var(--color-foreground);
+}
+
+/* Responsive rail. */
+@media (min-width: 64rem) {
+  .app-shell {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .app-topbar {
+    grid-column: 1 / -1;
+  }
+
+  .app-topbar-brand {
+    display: block;
+  }
+
+  .app-topbar-env {
+    display: inline-flex;
+  }
+
+  .app-sidebar {
+    display: block;
+    grid-row: 2;
+    grid-column: 1;
+    width: 15rem;
+    border-right: 1px solid var(--color-border);
+    padding: var(--space-5) var(--space-4) var(--space-6);
+    background-color: var(--color-background-sunken);
+    transition: width var(--duration-base) var(--ease-out);
+  }
+
+  .app-sidebar[data-collapsed="true"] {
+    width: 4.25rem;
+  }
+
+  .app-mobile-nav {
+    display: none;
+  }
+}
+
+/* Menus in the topbar */
+
+.app-menu {
+  position: relative;
+}
+
+.app-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: 14rem;
+  min-height: var(--control-height-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  padding: var(--space-1) var(--space-3);
+  color: var(--color-foreground-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.app-menu-trigger:hover,
+.app-menu-trigger[aria-expanded="true"] {
+  background-color: var(--color-surface);
+  border-color: var(--color-border-strong);
+  color: var(--color-foreground);
+}
+
+.app-menu-trigger--icon {
+  width: var(--control-height-md);
+  padding: 0;
+  justify-content: center;
+}
+
+.app-menu-trigger-label {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+  text-align: left;
+}
+
+.app-menu-trigger-value {
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-menu-surface {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 60;
+  min-width: 16rem;
+  max-width: min(22rem, calc(100vw - 2 * var(--gutter)));
+  border: 1px solid var(--color-border-strong);
+  background-color: var(--color-surface-elevated);
+  box-shadow: 0 18px 40px -24px rgb(0 0 0 / 0.6);
+}
+
+.app-menu-list {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+}
+
+.app-menu-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 36px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-small);
+  text-align: left;
+  color: var(--color-foreground-muted);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.app-menu-item:hover {
+  background-color: var(--color-surface);
+  color: var(--color-foreground);
+}
+
+.app-menu-item[data-active="true"] {
+  color: var(--color-accent);
+}
+
+/* The slug is an identifier, not a label: the faint token is for large text and
+   hairlines only, and reads at roughly 3:1 at this size. */
+.app-menu-item-slug {
+  color: var(--color-foreground-muted);
+}
+
+.app-menu-item:hover .app-menu-item-slug {
+  color: var(--color-foreground);
+}
+
+.app-menu-header,
+.app-menu-footer {
+  padding: var(--space-4);
+}
+
+.app-menu-header {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.app-menu-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.app-menu-empty {
+  margin-top: var(--space-2);
+  font-size: var(--font-size-small);
+  line-height: var(--leading-relaxed);
+  color: var(--color-foreground-muted);
+  text-wrap: pretty;
+}
+
+/* Application pages. */
+
+.app-page-header {
+  padding-block: var(--space-5) var(--space-2);
+}
+
+.app-page-header-copy {
+  min-width: 0;
+}
+
+.app-page-header-lede {
+  margin-top: var(--space-3);
+}
+
+.app-page-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.app-page-body {
+  display: grid;
+  /* 'minmax(0, 1fr)' rather than the implicit 'auto': an 'auto' track is sized by
+     its widest child, so a child that reports an intrinsic width (an SVG with a
+     viewBox, a wide table) grows the track past the viewport and the page scrolls
+     sideways. Pinning the column to the available width makes wide children
+     shrink instead. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+  padding-block: var(--space-5) var(--space-9);
+}
+
+/* The bottom bar overlays content, so the last block needs clearance on mobile. */
+@media (max-width: 63.999rem) {
+  .app-page-body {
+    padding-bottom: calc(var(--space-9) + 3.5rem);
+  }
+}
+
+/* Detail tables: secondary columns drop before the table scrolls sideways. */
+.data-table [data-secondary="true"] {
+  display: none;
+}
+
+@media (min-width: 48rem) {
+  .data-table [data-secondary="true"] {
+    display: table-cell;
+  }
+}
+
+/* Application list rows: the primary cell carries the link. */
+.app-row-link {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-height: 24px;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-foreground);
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.app-row-link:hover {
+  color: var(--color-accent);
+}
+
+.app-row-meta {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-micro);
+  letter-spacing: var(--tracking-label);
+  color: var(--color-foreground-faint);
+}
+.app-main {
+  grid-row: 2;
+  grid-column: 1;
+  min-width: 0;
+}
+
+@media (min-width: 64rem) {
+  .app-main {
+    grid-column: 2;
+    overflow-x: hidden;
+  }
+}
+/* Upload transfer indicator. */
+.upload-progress {
+  position: relative;
+  overflow: hidden;
+  height: 0.35rem;
+  border-radius: var(--radius-xs);
+  background-color: var(--color-background-sunken);
+}
+
+.upload-progress__bar {
+  display: block;
+  height: 100%;
+  background-color: var(--color-accent);
+  transition: width 120ms linear;
+}
+
+.upload-progress[data-indeterminate="true"] .upload-progress__bar {
+  width: 35%;
+  animation: upload-progress-indeterminate 1.2s ease-in-out infinite;
+}
+
+@keyframes upload-progress-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .upload-progress__bar {
+    transition: none;
+  }
+
+  .upload-progress[data-indeterminate="true"] .upload-progress__bar {
+    width: 100%;
+    animation: none;
+  }
+}

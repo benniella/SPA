@@ -1,0 +1,16 @@
+from __future__ import annotations
+
+from typing import Protocol, runtime_checkable
+
+
+@runtime_checkable
+class JobQueue(Protocol):
+    async def enqueue(self, job_id: str) -> None: ...
+
+    async def dequeue(self, *, timeout_seconds: int = 5) -> str | None: ...
+
+    async def acknowledge(self, job_id: str) -> None: ...
+
+    async def requeue(self, job_id: str) -> None: ...
+
+    async def close(self) -> None: ...

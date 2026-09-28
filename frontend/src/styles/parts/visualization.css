@@ -1,0 +1,144 @@
+/* Analysis visualization: source-frame surfaces, track selector, timeline. */
+
+.viz-frame-surface {
+  display: block;
+  /* An <svg> with a viewBox but no width/height attribute has no intrinsic size
+     for 'width: 100%' to override, so it lays out at its viewBox dimensions and
+     forces the page to scroll sideways on a narrow screen. The aspect ratio is
+     set inline from the source-frame extent; a definite width and a maximum
+     height give it a real responsive box instead. */
+  width: 100%;
+  height: auto;
+  max-height: 70vh;
+  border: 1px solid var(--color-border);
+  background-color: var(--viz-surface);
+}
+
+/* The panel sits inside the app shell's grid, whose implicit column is sized by
+   its widest child. An SVG with a viewBox reports an intrinsic width, so without
+   this the column grows to fit the surface and the page scrolls sideways on a
+   phone. 'grid-template-columns: minmax(0, 1fr)' pins the column to the
+   available width so the surface shrinks to it instead of the other way round. */
+.viz-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+
+.viz-panel .tab-panel,
+.viz-panel .stack {
+  min-width: 0;
+}
+
+.viz-frame-backdrop {
+  fill: var(--viz-surface);
+}
+
+.viz-track {
+  cursor: pointer;
+}
+
+.viz-track:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.viz-track[data-selected="true"] {
+  outline: none;
+}
+
+/* Track selector */
+
+.viz-track-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.viz-track-option {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-height: 2rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-small);
+  color: var(--color-foreground-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.viz-track-option:hover {
+  border-color: var(--color-border-strong);
+  background-color: var(--color-surface-interactive);
+  color: var(--color-foreground);
+}
+
+/* Selected state is carried by the border and the weight as well as the colour,
+   so it does not depend on hue alone. */
+.viz-track-option[data-selected="true"] {
+  border-color: var(--color-accent-line);
+  background-color: var(--color-accent-subtle);
+  color: var(--color-foreground);
+  font-weight: var(--font-weight-semibold);
+}
+
+.viz-track-option-label {
+  white-space: nowrap;
+}
+
+.viz-track-option-detail {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-micro);
+  letter-spacing: var(--tracking-label);
+  color: var(--color-foreground-faint);
+}
+
+/* Activity timeline */
+
+.viz-timeline {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 6rem;
+  border: 1px solid var(--color-border);
+  background-color: var(--viz-surface);
+  padding: var(--space-2);
+}
+
+.viz-timeline-bucket {
+  display: flex;
+  flex: 1 1 0;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 1px;
+  height: 100%;
+}
+
+.viz-timeline-bar {
+  display: block;
+  width: 100%;
+  background-color: var(--color-accent);
+  opacity: 0.85;
+}
+
+.viz-timeline-bar[data-empty="true"] {
+  opacity: 0;
+}
+
+.viz-timeline-axis {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@media (max-width: 40rem) {
+  .viz-timeline {
+    height: 4.5rem;
+  }
+}

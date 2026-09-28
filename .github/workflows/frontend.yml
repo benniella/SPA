@@ -1,0 +1,58 @@
+name: Frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend.yml"
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend.yml"
+
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint, typecheck, test and build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (eslint)
+        run: npm run lint
+
+      - name: Check formatting (prettier)
+        run: npm run format:check
+
+      - name: Type-check (tsc)
+        run: npm run typecheck
+
+      - name: Run tests (vitest)
+        run: npm run test
+
+      - name: Production build
+        # The build is part of CI, not just deployment: it catches Server/Client
+        # Component boundary violations and route conflicts that no unit test
+        # would, and a build that fails only on deploy is a build that fails late.
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+          NEXT_PUBLIC_API_VERSION_PREFIX: /api/v1

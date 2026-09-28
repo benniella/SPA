@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="SPA">
+  <!-- Dark-surface variant. 6 units of internal padding so the mark clears a favicon edge. -->
+  <rect width="64" height="64" fill="#090A0B"/>
+  <path d="M14 18h22l14 14-14 14H14l14-14z" fill="#19E68C"/>
+  <path d="M44 18h6l-14 14 14 14h-6L30 32z" fill="#00B96B"/>
+</svg>

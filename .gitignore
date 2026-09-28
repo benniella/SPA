@@ -1,0 +1,65 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.qodo
+.vscode/
+
+# --- Tooling caches ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+junit.xml
+
+# --- Node / Next.js ---
+node_modules/
+.next/
+out/
+.turbo/
+.vercel/
+next-env.d.ts
+*.tsbuildinfo
+
+# --- Environment / secrets ---
+# Only the checked-in examples are tracked. An accidentally committed .env is a
+# credential leak, and 'scripts/check-architecture.sh' fails the build if one is.
+.env
+.env.*
+!.env.example
+
+# --- ML artefacts (never commit large binaries) ---
+ml/models/*
+!ml/models/.gitkeep
+ml/experiments/runs/
+ml/data/
+*.pt
+*.pth
+*.onnx
+*.weights
+*.mkv
+*.avi
+*.mov
+# --- Notebooks ---
+.ipynb_checkpoints/
+# --- Local storage (uploaded media is runtime state, not source) ---
+# The hero clip under 'frontend/public/' is source and stays tracked.
+backend/var/
+var/
+# --- Editors / OS ---
+.idea/
+.DS_Store
+Thumbs.db
+*.swp

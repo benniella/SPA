@@ -1,0 +1,1719 @@
+.hero {
+  padding-block: var(--space-9) var(--space-10);
+}
+
+.hero-grid {
+  display: grid;
+  gap: var(--space-8);
+  align-items: center;
+}
+
+.hero-headline {
+  text-transform: uppercase;
+}
+
+/* The two CTAs are one action pair, so they share a row. The generic '.row-wrap' wraps
+   as soon as the buttons plus the rail column exceed the column width, which at
+   1440px stacks them and breaks the left-hand hierarchy the hero is built on. */
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--space-3) var(--space-4);
+}
+
+.hero-visual {
+  min-width: 0;
+}
+
+/* The hero visual: footage as the source, detection drawn over it. */
+.hero-analysis {
+  margin: 0;
+  background-color: var(--viz-surface);
+}
+
+.hero-analysis-body {
+  position: relative;
+  aspect-ratio: 864 / 496;
+  /* The video and the overlay are locked to this box's exact aspect ratio, so
+     'cover' fills it without cropping and the marks in the SVG land on the same
+     pixels of the footage they were positioned against. */
+  overflow: hidden;
+  background-color: var(--viz-surface);
+}
+
+.hero-analysis .hero-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.72;
+  filter: saturate(0.85) contrast(1.06);
+}
+
+/* The frame is being read. Without a moving element the visual is a still with
+   annotations on top; the sweep and the stepped frame counter are what make the
+   analysis read as running. */
+.hero-analysis-scanline {
+  position: absolute;
+  z-index: 1;
+  inset-inline: 0;
+  top: 0;
+  height: 34%;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in oklab, var(--viz-detect) 7%, transparent) 55%,
+    color-mix(in oklab, var(--viz-detect) 30%, transparent) 100%
+  );
+  box-shadow: 0 1px 0 color-mix(in oklab, var(--viz-detect) 55%, transparent);
+  opacity: 0.7;
+  pointer-events: none;
+  animation: hero-analysis-scan 5.5s var(--ease-in-out) infinite;
+}
+
+@keyframes hero-analysis-scan {
+  0% {
+    transform: translateY(-110%);
+  }
+  100% {
+    transform: translateY(320%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-analysis-scanline {
+    animation: none;
+    opacity: 0.35;
+  }
+}
+
+.hero-analysis-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--color-border);
+  pointer-events: none;
+}
+
+/* The chrome plate is transparent to the pointer and carries only the analysis
+   furniture, so the whole visual reads as one analysed frame rather than as a
+   player with a dashboard attached. At narrow widths it cannot overlay the
+   footage without covering it, so it drops below instead. */
+.hero-analysis-chrome {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  background-color: var(--viz-surface);
+  pointer-events: none;
+}
+
+@media (min-width: 40rem) {
+  .hero-analysis-chrome {
+    position: absolute;
+    z-index: 3;
+    inset: 0;
+    justify-content: space-between;
+    border-top: 0;
+    background: none;
+  }
+}
+
+/* Both plates are solid rather than a full-frame gradient: a gradient dims the
+   footage itself, and the point of the composition is that the annotations are
+   read ON the footage. The upper plate covers the corner labels only. */
+.hero-analysis-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin: calc(-1 * var(--space-3)) calc(-1 * var(--space-3)) 0;
+  padding: var(--space-3);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--viz-surface) 92%, transparent) 0%,
+    color-mix(in oklab, var(--viz-surface) 78%, transparent) 62%,
+    transparent 100%
+  );
+}
+
+/* The pipeline is the reading order of the frame, and it sits with the readout at
+   the foot of the visual so nothing crosses the players. */
+.hero-analysis-foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.hero-analysis-pipeline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+@media (min-width: 40rem) {
+  .hero-analysis-foot {
+    /* Solid, not a gradient: two bands of small mono text over moving grass are
+       unreadable without it. Cancels the chrome padding so the plate reaches the
+       frame's edges. */
+    margin: 0 calc(-1 * var(--space-3)) calc(-1 * var(--space-3));
+    padding: var(--space-3) var(--space-3) var(--space-3);
+    gap: var(--space-4);
+    background-color: color-mix(in oklab, var(--viz-surface) 88%, transparent);
+  }
+
+  .hero-analysis-pipeline {
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid color-mix(in oklab, var(--color-border-strong) 70%, transparent);
+  }
+}
+
+/* Detection marks use the product's blue rather than the general green accent, so
+   the analysis reads as part of the same system as the CTAs. */
+.hero-analysis {
+  --viz-detect: var(--button-accent-strong);
+  --viz-detect-deep: var(--button-accent);
+
+  margin: 0;
+  background-color: var(--viz-surface);
+}
+
+/* The stage chips are drawn over the footage, so they take the grammar of an
+   annotation rather than of a chip: hairline, mono, uppercase, translucent. A
+   filled surface-coloured chip would read as a page component sitting on top of
+   the video instead of as part of the frame being analysed. */
+.hero-analysis-stage {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid color-mix(in oklab, var(--viz-detect) 42%, transparent);
+  background-color: color-mix(in oklab, var(--viz-surface) 62%, transparent);
+  padding: 0.125rem var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-micro);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-foreground);
+  white-space: nowrap;
+}
+
+/* The reading order is carried by the arrow between chips, so the last stage is
+   distinguished from the intermediate ones by weight rather than by colour alone. */
+.hero-analysis-stage:last-child {
+  border-color: var(--viz-detect);
+  color: var(--color-foreground);
+}
+
+.hero-analysis-link {
+  display: inline-flex;
+  color: var(--viz-detect, var(--button-accent-strong));
+}
+
+.hero-analysis-readout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+}
+
+.hero-analysis-readout-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  white-space: nowrap;
+}
+
+.hero-analysis-readout-value {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+  color: var(--color-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 64rem) {
+  .hero {
+    padding-block: var(--space-10) var(--space-11);
+  }
+
+  .hero-headline {
+    /* 17ch is not a usable measure here: in Space Grotesk the '0' glyph is wide
+       enough that a ch resolves to more than the ROW's width. The size is pinned
+       so 'INTO PERFORMANCE DATA' stays on one line and the headline resolves in two. */
+    font-size: clamp(1.75rem, 0.95rem + 1.85vw, 2.5rem);
+  }
+
+  /* The copy column is taller than the footage at this ratio, so the two columns are
+     aligned on their top edge: centring the shorter visual leaves a void beneath it
+     and makes the analysis read as secondary to the copy. */
+  /* The copy column takes the larger share: the two CTAs need 584px to sit on one
+     row, and the footage is a 864x496 frame that does not need half the viewport.
+     A 1fr/1fr split wraps the buttons and stacks the pair. */
+  .hero-grid {
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-8);
+  }
+}
+
+.capability-strip {
+  border-block: 1px solid var(--color-border);
+  background-color: var(--color-background-sunken);
+  padding-block: var(--space-5);
+}
+
+.capability-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+}
+
+.capability-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-foreground-muted);
+}
+
+.capability-mark {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  background-color: var(--color-accent);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+
+/* Process steps. */
+.process-list {
+  display: grid;
+  gap: 1px;
+  background-color: var(--color-border);
+  border-block: 1px solid var(--color-border);
+}
+
+.process-step {
+  background-color: var(--color-background);
+  padding: var(--space-5) var(--space-4);
+}
+
+@media (min-width: 48rem) {
+  .process-list {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Sports / audience lists: hairline-ruled rows. */
+.ruled-list {
+  border-top: 1px solid var(--color-border);
+}
+
+.ruled-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  /* The label and its trailing value sit inside the container's gutter. A negative
+     inline margin would push the item wider than the container it is in, which the
+     section then clips, and the list reads as cropped at both edges. */
+  padding-block: var(--space-4);
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    padding-left var(--duration-base) var(--ease-out);
+}
+
+/* The trailing value is a qualifier on the label, so it hangs off the row's end on a
+   wide screen and drops to its own line on a narrow one rather than being squeezed. */
+.ruled-item-trailing {
+  margin-left: auto;
+}
+
+.ruled-item:hover {
+  background-color: var(--color-surface);
+  padding-left: var(--space-3);
+}
+
+.ruled-item-index {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-label);
+  color: var(--color-foreground-faint);
+}
+
+/* Footer */
+.footer {
+  border-top: 1px solid var(--color-border);
+  padding-block: var(--space-8) var(--space-6);
+  background-color: var(--color-background-sunken);
+}
+
+.footer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-7);
+}
+
+.footer-grid > :first-child {
+  grid-column: 1 / -1;
+}
+
+.footer-column-heading {
+  font-size: var(--font-size-micro);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-foreground);
+}
+
+.footer-link {
+  display: inline-flex;
+  align-items: center;
+  /* 24px is the WCAG 2.2 AA minimum target size. */
+  min-height: 24px;
+  font-size: var(--font-size-small);
+  color: var(--color-foreground-muted);
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.footer-link:hover {
+  color: var(--color-accent);
+}
+
+.footer-legal {
+  border-top: 1px solid var(--color-border);
+  margin-top: var(--space-7);
+  padding-top: var(--space-5);
+}
+
+@media (min-width: 48rem) {
+  .footer-grid {
+    grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
+  }
+
+  .footer-grid > :first-child {
+    grid-column: auto;
+  }
+}
+
+@media (min-width: 64rem) {
+  .footer-grid {
+    grid-template-columns: minmax(0, 2fr) repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* The video → performance analysis pipeline. Three stacked stages joined by
+   connectors, rather than the side-by-side comparison the other visualizations
+   use: the point here is the sequence, not a before and after. */
+.spa-analysis-visual {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-background-sunken);
+}
+
+.spa-analysis-panel {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--color-surface);
+}
+
+.spa-analysis-panel__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 3.375rem;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.spa-analysis-panel__title {
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-foreground);
+}
+
+.spa-analysis-panel__status,
+.spa-analysis-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-foreground-muted);
+}
+
+.spa-analysis-badge {
+  border: 1px solid var(--color-border-strong);
+  padding: 0.125rem var(--space-2);
+}
+
+.spa-analysis-badge--blue {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.spa-status-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background-color: var(--color-success, var(--color-accent));
+}
+
+/* Stage 01 — video input. */
+.spa-video-frames {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+@media (min-width: 48rem) {
+  .spa-video-frames {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.spa-video-frame {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  background-color: var(--viz-surface);
+}
+
+.spa-video-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 200 / 110;
+}
+
+.spa-analysis-panel__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-foreground-muted);
+}
+
+.spa-analysis-panel__footer strong {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-foreground);
+}
+
+.spa-footer-spacer {
+  flex: 1;
+}
+
+.spa-footer-divider {
+  width: 1px;
+  height: 0.875rem;
+  margin: 0 var(--space-2);
+  background-color: var(--color-border);
+}
+
+/* The connectors between stages. */
+.spa-analysis-connector {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 3rem;
+}
+
+.spa-analysis-connector__line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(to bottom, transparent, var(--color-border-strong), transparent);
+}
+
+.spa-analysis-connector__arrow {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  background-color: var(--color-background-sunken);
+  color: var(--color-accent);
+  font-size: var(--font-size-body);
+  line-height: 1;
+}
+
+/* Stage 02 — detection + tracking. */
+.spa-tracking-space {
+  position: relative;
+  overflow: hidden;
+  height: 18rem;
+  background-color: var(--viz-surface);
+}
+
+@media (min-width: 48rem) {
+  .spa-tracking-space {
+    height: 21rem;
+  }
+}
+
+.spa-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--color-border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-border) 1px, transparent 1px);
+  background-size: 3.25rem 3.25rem;
+  opacity: 0.5;
+}
+
+.spa-track {
+  position: absolute;
+}
+
+/* Fixed positions, so the boxes read as subjects at loose positions across a
+   passage of play rather than as a lattice. */
+.spa-track--01 {
+  left: 18%;
+  top: 26%;
+}
+
+.spa-track--02 {
+  left: 44%;
+  top: 18%;
+}
+
+.spa-track--03 {
+  left: 68%;
+  top: 48%;
+}
+
+.spa-track--04 {
+  left: 34%;
+  top: 62%;
+}
+
+.spa-track-box {
+  position: relative;
+  width: 3.625rem;
+  height: 4.75rem;
+}
+
+.spa-track-label {
+  position: absolute;
+  top: -1.25rem;
+  left: 0;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-micro);
+  letter-spacing: 0.04em;
+  color: var(--color-accent);
+}
+
+/* Corner markers rather than a continuous border: the box reads as a detector
+   output pinned to a subject, not as a cropped picture. Sized and offset from
+   the box, so the four brackets close into a single rectangle. */
+.spa-track-corner {
+  position: absolute;
+  display: block;
+  width: 0.875rem;
+  height: 0.875rem;
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: var(--color-accent);
+}
+
+.spa-track-corner--tl {
+  top: 0;
+  left: 0;
+  border-width: 2px 0 0 2px;
+}
+
+.spa-track-corner--tr {
+  top: 0;
+  right: 0;
+  border-width: 2px 2px 0 0;
+}
+
+.spa-track-corner--bl {
+  bottom: 0;
+  left: 0;
+  border-width: 0 0 2px 2px;
+}
+
+.spa-track-corner--br {
+  bottom: 0;
+  right: 0;
+  border-width: 0 2px 2px 0;
+}
+
+.spa-trajectory {
+  position: absolute;
+  height: 1px;
+  transform-origin: left center;
+  background: linear-gradient(90deg, var(--color-accent), transparent);
+  opacity: 0.5;
+}
+
+.spa-trajectory--01 {
+  width: 7.5rem;
+  left: 3rem;
+  top: 4.25rem;
+  transform: rotate(-25deg);
+}
+
+.spa-trajectory--02 {
+  width: 6.5rem;
+  left: 3rem;
+  top: 3.5rem;
+  transform: rotate(18deg);
+}
+
+.spa-trajectory--03 {
+  width: 8rem;
+  left: -4.75rem;
+  top: 3.75rem;
+  transform: rotate(-28deg);
+}
+
+.spa-trajectory--04 {
+  width: 6rem;
+  left: 2.625rem;
+  top: 3.5rem;
+  transform: rotate(22deg);
+}
+
+/* Stage 03 — performance data. */
+.spa-performance-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 48rem) {
+  .spa-performance-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.spa-metric {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: 8.25rem;
+  padding: var(--space-4);
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.spa-metric:nth-child(2n) {
+  border-right: 0;
+}
+
+@media (min-width: 48rem) {
+  .spa-metric {
+    border-bottom: 0;
+  }
+
+  .spa-metric:nth-child(2n) {
+    border-right: 1px solid var(--color-border);
+  }
+
+  .spa-metric:last-child {
+    border-right: 0;
+  }
+}
+
+.spa-metric__label {
+  font-size: var(--font-size-micro);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-foreground-muted);
+}
+
+.spa-metric__value {
+  font-family: var(--font-mono);
+  font-size: clamp(1.25rem, 3vw, 2rem);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--color-foreground);
+}
+
+.spa-metric__value small {
+  font-size: var(--font-size-micro);
+  font-weight: var(--font-weight-regular);
+  letter-spacing: 0;
+  color: var(--color-foreground-muted);
+}
+
+.spa-metric__value--status {
+  font-size: var(--font-size-body);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+.spa-performance-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) 0;
+  border-top: 1px solid var(--color-border);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-foreground-muted);
+}
+
+.spa-performance-flow strong {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-accent);
+}
+
+/* The one disclosure every stage of this visualization relies on, placed with
+   the numbers rather than repeated in each header. */
+.spa-analysis-note {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+
+/* The full disclosure is longer than a narrow phone is wide; a nowrap badge would
+   push the panel past the viewport. It wraps here, and only here. */
+@media (max-width: 40rem) {
+  .spa-analysis-note .badge {
+    white-space: normal;
+    text-align: center;
+  }
+}
+
+/* Analysis visualizations. */
+
+.viz-frame {
+  position: relative;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-background-sunken);
+  overflow: hidden;
+}
+
+.viz-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+}
+
+.viz-body {
+  position: relative;
+}
+
+.viz-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.viz-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.viz-tag {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  background-color: var(--color-overlay);
+  padding: 0.125rem var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-micro);
+  letter-spacing: 0.04em;
+  color: var(--color-foreground);
+  white-space: nowrap;
+}
+
+.viz-readout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+}
+
+.viz-readout-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.viz-readout-value {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+  color: var(--color-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The two-panel comparison behind the "raw footage → structured information" sequence. */
+.compare-grid {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.compare-arrow {
+  display: flex;
+  justify-content: center;
+  color: var(--color-accent);
+}
+
+@media (min-width: 64rem) {
+  .compare-grid {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-6);
+  }
+}
+
+/* Tabs. */
+
+.tab-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tab {
+  position: relative;
+  padding: var(--space-3) var(--space-4);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-foreground-muted);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.tab:hover {
+  color: var(--color-foreground);
+}
+
+.tab[aria-selected="true"] {
+  color: var(--color-accent);
+}
+
+.tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background-color: var(--color-accent);
+}
+
+.tab-panel {
+  padding-top: var(--space-5);
+}
+
+/* Icon button */
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height-md);
+  height: var(--control-height-md);
+  background-color: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-foreground-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.icon-button:hover {
+  background-color: var(--color-surface);
+  border-color: var(--color-border-strong);
+  color: var(--color-foreground);
+}
+
+/* Reduced-motion escape hatches. */
+
+@media (prefers-reduced-motion: reduce) {
+  .spa-button:hover,
+  .spa-button:active,
+  .spa-button:hover .spa-button__arrow,
+  .ruled-item:hover,
+  .nav-link::after {
+    transform: none;
+  }
+
+  .spa-button__spinner {
+    animation: none;
+  }
+
+  .skip-link:focus-visible {
+    transform: none;
+  }
+}
+/* Pipeline rail. */
+
+.engine-rail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.engine-stage {
+  position: relative;
+  display: flex;
+  flex: 1 1 10rem;
+  flex-direction: column;
+  gap: var(--space-1);
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  padding: var(--space-4);
+  min-width: 0;
+}
+
+.engine-stage-number {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-micro);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-foreground-muted);
+}
+
+.engine-stage-icon {
+  color: var(--color-accent);
+  margin-top: var(--space-1);
+}
+
+.engine-stage-label {
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.engine-stage-output {
+  font-size: var(--font-size-small);
+  color: var(--color-foreground-muted);
+  text-wrap: pretty;
+}
+
+/* The divide between model-driven stages and computation over their output. */
+.engine-stage-boundary {
+  position: absolute;
+  top: 0;
+  right: calc(-1 * var(--space-3) - 1px);
+  bottom: 0;
+  width: 2px;
+  background-color: var(--color-accent-secondary);
+}
+
+.engine-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.engine-legend-mark {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+}
+
+.engine-legend-mark[data-kind="vision"] {
+  background-color: var(--color-accent);
+}
+
+.engine-legend-mark[data-kind="analysis"] {
+  background-color: var(--color-accent-secondary);
+  opacity: 0.55;
+}
+
+/* The compare arrow points right on desktop and down when the grid stacks. */
+.compare-arrow-vertical {
+  display: inline-flex;
+}
+
+.compare-arrow-horizontal {
+  display: none;
+}
+
+@media (min-width: 64rem) {
+  .compare-arrow-horizontal {
+    display: inline-flex;
+  }
+
+  .compare-arrow-vertical {
+    display: none;
+  }
+}
+
+/* Athlete performance panel. */
+
+.athlete-panel {
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-5);
+}
+
+@media (min-width: 48rem) {
+  .athlete-panel {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--space-6);
+  }
+}
+
+.athlete-trace {
+  border: 1px solid var(--color-border);
+  background-color: var(--color-background-sunken);
+  overflow: hidden;
+}
+
+.athlete-metrics {
+  min-width: 0;
+}
+
+/* Two columns of metrics on desktop rather than one tall list. */
+.athlete-metric-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4) var(--space-5);
+}
+
+.athlete-metric {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-3);
+  min-width: 0;
+}
+
+.athlete-metric-value {
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.athlete-metric .metric-bar {
+  margin-top: var(--space-3);
+}
+
+.athlete-panel-note {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+/* Insights chain. */
+
+.chain {
+  display: grid;
+  gap: 1px;
+  background-color: var(--color-border);
+  border: 1px solid var(--color-border);
+}
+
+.chain-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background-color: var(--color-background);
+  padding: var(--space-5);
+}
+
+.chain-step-label {
+  font-size: var(--font-size-h4);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.chain-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-accent);
+  padding-block: var(--space-3);
+}
+
+@media (min-width: 48rem) {
+  .chain {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .chain-arrow {
+    display: none;
+  }
+
+  .chain-step:not(:first-child) {
+    position: relative;
+  }
+
+  /* The horizontal connector between adjacent chain steps. */
+  .chain-step:not(:first-child)::before {
+    content: "";
+    position: absolute;
+    left: -7px;
+    top: 50%;
+    width: 13px;
+    height: 2px;
+    background-color: var(--color-accent);
+    transform: translateY(-50%);
+  }
+}
+
+/* Audit strip */
+
+.audit-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-6);
+  border-block: 1px solid var(--color-border);
+  padding-block: var(--space-4);
+}
+
+.audit-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-small);
+  color: var(--color-foreground-muted);
+}
+
+.audit-item svg {
+  color: var(--color-accent);
+  flex: 0 0 auto;
+} /* Problem stages (#23) */
+
+.problem-stages {
+  display: grid;
+  gap: 1px;
+  background-color: var(--color-border);
+  border: 1px solid var(--color-border);
+}
+
+.problem-stage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background-color: var(--color-background);
+  padding: var(--space-5);
+}
+
+@media (min-width: 48rem) {
+  .problem-stages {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+} /* Engine status statement (#25) */
+
+.engine-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-left: 2px solid var(--color-warning);
+  background-color: var(--color-surface);
+  padding: var(--space-4) var(--space-5);
+}
+
+.engine-status p {
+  flex: 1 1 24rem;
+  min-width: 0;
+} /* Metric grid (#26) */
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5) var(--space-6);
+}
+
+@media (min-width: 48rem) {
+  .metric-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 64rem) {
+  .metric-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+} /* Multi-sport (#27) */
+
+.sports-layout {
+  display: grid;
+  gap: var(--space-7);
+}
+
+@media (min-width: 64rem) {
+  .sports-layout {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    align-items: start;
+    gap: var(--space-9);
+  }
+}
+
+.sports-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1px;
+  background-color: var(--color-border);
+  border: 1px solid var(--color-border);
+}
+
+.sport-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  background-color: var(--color-background);
+  padding: var(--space-4);
+  min-height: 4.5rem;
+  min-width: 0;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.sport-item:hover {
+  background-color: var(--color-surface);
+}
+
+.sport-item > svg {
+  flex: 0 0 auto;
+  color: var(--color-foreground-faint);
+}
+
+.sport-item-label {
+  flex: 1 1 6rem;
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  min-width: 0;
+}
+
+/* Sport items wrap their status under the label. */
+.sport-item-status {
+  flex: 1 1 100%;
+  min-width: 0;
+  text-align: left;
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+.sports-list > li {
+  min-width: 0;
+}
+
+/* The 'li' is a flex container (see StaggerItem), so the item must fill it. */
+.sports-list > li > * {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (min-width: 64rem) {
+  .sport-item {
+    flex-wrap: nowrap;
+  }
+
+  .sport-item-status {
+    flex: 0 0 auto;
+    text-align: right;
+  }
+}
+
+.sport-item-more {
+  background-color: var(--color-background-sunken);
+}
+
+.sport-item-more > svg {
+  color: var(--color-accent);
+}
+
+/* The closing list sits on a sunken band. */
+.sports-coda {
+  margin-top: var(--space-8);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-6);
+}
+
+@media (min-width: 40rem) {
+  .sports-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+/* Audience (#29) */
+.audience-list {
+  display: grid;
+  gap: 1px;
+  background-color: var(--color-border);
+  border-block: 1px solid var(--color-border);
+}
+
+/* One column until there is room for two: an 'auto' label column is sized by the
+   longest label ('Performance Departments'), which overflows a phone. */
+.audience-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  align-items: baseline;
+  background-color: var(--color-background);
+  padding: var(--space-5) var(--space-4);
+}
+
+.audience-item-label {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-heading);
+}
+
+.audience-item-need {
+  grid-column: 1;
+  font-size: var(--font-size-body);
+  color: var(--color-foreground-muted);
+  text-wrap: pretty;
+}
+
+/* Aligns the arrow with the text's first line. */
+.audience-item-arrow {
+  display: inline-flex;
+  vertical-align: -0.125em;
+  margin-right: var(--space-2);
+  color: var(--color-foreground-faint);
+}
+
+@media (min-width: 48rem) {
+  .audience-item {
+    grid-template-columns: 18rem minmax(0, 1fr);
+    padding-inline: var(--space-5);
+  }
+
+  .audience-item-label {
+    grid-column: 1;
+  }
+
+  .audience-item-need {
+    grid-column: 2;
+  }
+} /* Analysis views list (#28) */
+
+.analysis-views {
+  display: grid;
+  gap: 1px;
+  background-color: var(--color-border);
+  border: 1px solid var(--color-border);
+}
+
+.analysis-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  background-color: var(--color-background);
+  padding: var(--space-4);
+}
+
+@media (min-width: 48rem) {
+  .analysis-views {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+} /* Insights (#30) */
+
+.insights-panel {
+  display: grid;
+  gap: var(--space-6);
+}
+
+@media (min-width: 64rem) {
+  .insights-panel {
+    grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+    gap: var(--space-8);
+    align-items: start;
+  }
+}
+
+.report-rows {
+  border-top: 1px solid var(--color-border);
+}
+
+.report-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-4) var(--space-4);
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    padding-left var(--duration-base) var(--ease-out);
+}
+
+.report-row:hover {
+  background-color: var(--color-surface);
+  padding-left: var(--space-5);
+}
+
+.report-row-subject {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+}
+
+.insights-metric-grid {
+  display: grid;
+  gap: var(--space-5);
+}
+
+@media (min-width: 40rem) {
+  .insights-metric-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.insights-note {
+  margin-top: var(--space-6);
+  border-left: 1px solid var(--color-border);
+  padding-left: var(--space-5);
+}
+
+/* Final CTA (#31) */
+
+.final-cta {
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-background-sunken);
+  padding-block: var(--space-10);
+}
+
+.final-cta-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+  align-items: flex-start;
+}
+
+@media (min-width: 64rem) {
+  .final-cta-inner {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-9);
+  }
+}
+
+.final-cta-headline {
+  text-transform: uppercase;
+}
+
+@media (min-width: 64rem) {
+  .final-cta-copy {
+    max-width: 42rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .report-row:hover {
+    padding-left: var(--space-4);
+    transform: none;
+  }
+}
+
+.banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  padding: var(--space-4) var(--space-5);
+  overflow: hidden;
+}
+
+.banner-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--color-foreground-muted);
+}
+
+.banner-body {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+
+.banner-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-heading);
+}
+
+.banner-text {
+  margin-top: var(--space-2);
+  font-size: var(--font-size-small);
+  line-height: var(--leading-relaxed);
+  color: var(--color-foreground-muted);
+  text-wrap: pretty;
+  max-width: var(--measure);
+}
+
+.banner-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.banner-dismiss {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-left: auto;
+  background-color: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-foreground-faint);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.banner-dismiss:hover {
+  background-color: var(--color-surface-interactive);
+  color: var(--color-foreground);
+}
+
+/* Tone treatment: left rule and icon only. */
+.banner-informational {
+  border-left-color: var(--color-info);
+}
+.banner-informational .banner-icon {
+  color: var(--color-info);
+}
+
+.banner-success {
+  border-left-color: var(--color-success);
+}
+.banner-success .banner-icon {
+  color: var(--color-success);
+}
+
+.banner-warning {
+  border-left-color: var(--color-warning);
+}
+.banner-warning .banner-icon {
+  color: var(--color-warning);
+}
+
+.banner-error {
+  border-left-color: var(--color-danger);
+}
+.banner-error .banner-icon {
+  color: var(--color-danger);
+}
+
+.banner-announcement {
+  border-left-color: var(--color-accent);
+}
+.banner-announcement .banner-icon {
+  color: var(--color-accent);
+}
+
+:root[data-theme="light"] .viz-frame {
+  background-color: var(--viz-surface);
+}
+
+:root[data-theme="light"] .viz-canvas {
+  opacity: 0.95;
+}
+
+/* A near-opaque plate replaces the backdrop blur on the light theme. */
+:root[data-theme="light"] .nav-shell {
+  background-color: color-mix(in oklab, var(--color-background) 94%, transparent);
+}
+
+/* Caption and micro text need the darker muted token on a light background. */
+:root[data-theme="light"] .text-faint,
+:root[data-theme="light"] .text-micro {
+  color: #5c636a;
+}
+
+/* The practice grid uses 'StaggerItem' as 'li', which needs the display reset. */
+.practice-grid > li,
+.sports-list > li,
+.process-list > li,
+.metric-grid > li {
+  display: flex;
+  min-width: 0;
+}
+
+.practice-grid > li > *,
+.metric-grid > li > * {
+  flex: 1;
+  min-width: 0;
+}

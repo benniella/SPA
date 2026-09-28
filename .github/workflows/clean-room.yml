@@ -1,0 +1,89 @@
+name: Clean room
+
+# Verifies that a fresh clone reaches a working state from the documented
+# commands alone.
+#
+# Why this job exists separately from the application workflows: they run
+# 'make install'-equivalent steps with an empty environment, but they never check
+# that the *documented sequence* works end to end. Setup instructions rot silently
+# — a file added to .gitignore, a dependency declared only in one place, an
+# '.env.example' missing a variable that code requires. This job is the only thing
+# that would notice.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: clean-room-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bootstrap:
+    name: A fresh clone reaches a working state
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: spa
+          POSTGRES_PASSWORD: spa
+          POSTGRES_DB: spa
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U spa -d spa"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Run the documented setup
+        # Exactly the README's commands. If this sequence stops working, the
+        # documentation is wrong and the build fails — which is the point.
+        run: |
+          make env
+
+          # Point at the CI PostgreSQL on the default port.
+          sed -i 's|localhost:5442|localhost:5432|' backend/.env
+          sed -i 's|^POSTGRES_PORT=.*|POSTGRES_PORT=5432|' .env
+
+          make install
+
+      - name: Migrations apply cleanly from scratch
+        run: make migrate
+
+      - name: The API starts and answers
+        run: |
+          make backend-dev > /tmp/api.log 2>&1 &
+          for _ in $(seq 1 30); do
+            if curl -sf http://localhost:8000/api/v1/health > /dev/null; then break; fi
+            sleep 1
+          done
+
+          curl -sf http://localhost:8000/api/v1/health
+          # Readiness proves the API reached PostgreSQL, not merely that it booted.
+          curl -sf http://localhost:8000/api/v1/health/ready
+
+      - name: The frontend builds
+        # Building rather than starting the dev server: 'next build' is what
+        # catches Server/Client Component boundary violations, and a dev server
+        # that boots proves much less.
+        run: make frontend-build
+
+      - name: The full quality gate passes
+        run: make check

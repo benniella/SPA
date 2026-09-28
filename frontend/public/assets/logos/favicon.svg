@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="SPA">
+  <!-- Reduced mark: below 32px the second chevron reads as noise. -->
+  <rect width="32" height="32" rx="4" fill="#090A0B"/>
+  <path d="M7 9h11l7 7-7 7H7l7-7z" fill="#19E68C"/>
+</svg>

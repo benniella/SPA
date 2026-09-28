@@ -1,0 +1,45 @@
+# Example experiment configuration.
+#
+# Documents the intended shape of a pipeline experiment. This is a *template*,
+# not a record of a run that happened — Phase 0 contains no model code, so no
+# experiment has been performed.
+#
+# Committed configs plus recorded metrics in 'runs/' are what make results
+# reproducible and comparable.
+
+name: detector-recall-on-wide-angle
+description: >
+  Measure person-detection recall on fixed wide-angle club footage, to decide
+  whether a broadcast-tuned detector transfers to SPA's primary input.
+
+# Which dataset the experiment runs over. Match footage is never committed;
+# reference it by object-storage key or by an external dataset identifier.
+dataset:
+  source: object_storage # object_storage | local_path
+  keys: []
+  # Deliberately not a single "sample" number: a method that is better on
+  # average but fails on one camera angle is a different proposition from one
+  # that is uniformly better, and averaging hides that.
+  match_count: 0
+
+# Stages exercised by this experiment. A subset of the production pipeline is
+# fine — usually an experiment isolates one stage.
+pipeline:
+  stages: [detection]
+  model_versions: {}
+  params:
+    confidence_threshold: 0.35
+
+# What is measured. Metrics are aggregated per match and then summarised.
+metrics:
+  - name: recall
+    primary: true
+  - name: precision
+  - name: ids_switched
+    note: Only meaningful when the tracking stage is included.
+  - name: inference_seconds_per_frame
+
+# Baselines and thresholds that turn a number into a decision.
+acceptance:
+  min_recall: 0.85
+  max_inference_seconds_per_frame: 0.05

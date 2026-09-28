@@ -1,0 +1,76 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "spa-ml"
+version = "0.0.0"
+description = "SPA — computer-vision and video-processing pipeline (Phase 1)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+
+# Deliberately minimal. Phase 0 contains no model code, and adding torch, OpenCV
+# and a GPU stack before there is anything to run would make every developer's
+# environment heavier for no benefit.
+dependencies = [
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+# The computer-vision stack. Optional because it is large and, for most
+# contributors, unnecessary — installing it should be a deliberate choice, never
+# an accident of 'pip install -e .'.
+#
+# Pinned below 5.x: OpenCV 5 removed the HOG descriptor API that the built-in
+# person detector relies on, so an unbounded range would silently break the
+# default detector on a fresh install.
+cv = [
+    "opencv-python-headless>=4.10,<5",
+]
+
+# Talks to the SPA backend's persistence layer without re-implementing it.
+worker = [
+    "sqlalchemy>=2.0.36,<2.2",
+    "psycopg[binary]>=3.2",
+    "boto3>=1.35",
+    "celery>=5.4",
+    "redis>=5.2",
+]
+
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "jupyterlab>=4.3",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["detection", "tracking", "video", "pipelines", "analysis"]
+
+# Ruff configuration.
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "UP", "SIM", "RUF"]
+ignore = [
+    # Notebooks legitimately shadow names and use late imports for cell ordering.
+]
+
+[tool.ruff.lint.per-file-ignores]
+"notebooks/**" = ["E402", "F401", "F811"]
+
+# Mypy configuration.
+[tool.mypy]
+python_version = "3.11"
+files = ["detection", "tracking", "video", "pipelines", "analysis"]
+check_untyped_defs = true
+warn_unused_ignores = true
+ignore_missing_imports = true
+
+# Pytest configuration.
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

@@ -1,0 +1,30 @@
+name: Architecture
+
+# Guards the structural rules that no single application's test suite can check.
+#
+# The checks live in 'scripts/check-architecture.sh' rather than inline here, so a
+# developer can run exactly what CI runs instead of discovering a boundary
+# violation after pushing. 'make architecture' calls the same script.
+#
+# Each rule encodes a decision from docs/architecture/overview.md that would
+# otherwise erode silently.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: architecture-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  boundaries:
+    name: Layer and boundary rules
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check architectural boundaries
+        run: bash scripts/check-architecture.sh
