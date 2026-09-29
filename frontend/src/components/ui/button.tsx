@@ -62,6 +62,7 @@ const FOCUSABLE_WHEN_DISABLED = "aria-disabled";
 export function buttonClasses({
   variant = "primary",
   size = "md",
+  arrow = true,
   block = false,
   fullWidth = false,
   loading = false,
@@ -69,6 +70,7 @@ export function buttonClasses({
 }: {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  arrow?: boolean;
   block?: boolean;
   fullWidth?: boolean;
   loading?: boolean;
@@ -78,6 +80,7 @@ export function buttonClasses({
     "spa-button",
     `spa-button--${variant}`,
     `spa-button--${size}`,
+    arrow ? null : "spa-button--arrowless",
     block || fullWidth ? "spa-button--block" : null,
     loading ? "spa-button--loading" : null,
     className,
@@ -140,7 +143,7 @@ export function Button({
   type = "button",
   ...rest
 }: ButtonProps) {
-  const classes = buttonClasses({ variant, size, block, fullWidth, loading, className });
+  const classes = buttonClasses({ variant, size, arrow, block, fullWidth, loading, className });
   const inert = disabled || loading;
 
   const handleClick: MouseEventHandler<HTMLButtonElement> = (event) => {
@@ -207,7 +210,7 @@ export function ButtonLink({
   children,
   ...rest
 }: ButtonLinkProps) {
-  const classes = buttonClasses({ variant, size, block, fullWidth, loading, className });
+  const classes = buttonClasses({ variant, size, arrow, block, fullWidth, loading, className });
   const isExternal = /^https?:\/\//.test(href) || href.startsWith("//");
   const isInPageAnchor = href.startsWith("#");
 

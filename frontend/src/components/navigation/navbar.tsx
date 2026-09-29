@@ -104,7 +104,13 @@ export function Navbar() {
           </ul>
 
           <div className="nav-actions">
-            <ButtonLink href={NAV_ACTIONS.signIn.href} variant="technical" size="sm" arrow={false}>
+            <ButtonLink
+              href={NAV_ACTIONS.signIn.href}
+              variant="technical"
+              size="sm"
+              arrow={false}
+              className="spa-button--nav-sign-in"
+            >
               {NAV_ACTIONS.signIn.label}
             </ButtonLink>
             <ButtonLink href={NAV_ACTIONS.primary.href} variant="primary" size="sm">
@@ -174,6 +180,7 @@ export function Navbar() {
                       size="lg"
                       block
                       arrow={false}
+                      className="spa-button--nav-sign-in"
                     >
                       {NAV_ACTIONS.signIn.label}
                     </ButtonLink>

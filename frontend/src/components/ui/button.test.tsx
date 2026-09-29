@@ -23,6 +23,11 @@ describe("buttonClasses", () => {
     expect(buttonClasses({ fullWidth: true })).toContain("spa-button--block");
     expect(buttonClasses({ block: true })).toContain("spa-button--block");
   });
+
+  it("marks only the arrowless buttons, which are the ones that draw the rail", () => {
+    expect(buttonClasses({ arrow: false })).toContain("spa-button--arrowless");
+    expect(buttonClasses({})).not.toContain("spa-button--arrowless");
+  });
 });
 
 describe("Button", () => {
