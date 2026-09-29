@@ -53,7 +53,6 @@ export const BRAND = {
 /* Hero */
 
 export const HERO = {
-  eyebrow: "AI sports performance analysis",
   /** Split into two lines so the break is a design decision, not a viewport
    * accident: the second line carries the payoff and must not wrap. */
   headlineLines: ["Turn sports video", "into performance data"] as const,

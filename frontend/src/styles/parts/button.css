@@ -49,18 +49,6 @@
   box-shadow: inset 0 0 0 1px var(--spa-button-edge);
 }
 
-.spa-button::after {
-  content: "";
-  position: absolute;
-  right: 15px;
-  top: 50%;
-  width: 5px;
-  height: 28px;
-  transform: translateY(-50%) skewX(-22deg);
-  background: var(--button-accent);
-  pointer-events: none;
-}
-
 .spa-button__content {
   position: relative;
   z-index: 2;
@@ -176,15 +164,6 @@
   inset: 3px;
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.22);
 }
-/* A lighter rail than the fill, so the primary keeps the same defining diagonal
-   edge as the technical and ai variants instead of reading as a flat block. */
-.spa-button--primary::after {
-  right: 14px;
-  width: 7px;
-  height: 34px;
-  background: rgb(255 255 255 / 0.9);
-}
-
 .spa-button--primary:hover {
   --spa-button-fill: #3b82f6;
   filter: drop-shadow(0 10px 20px rgb(59 130 246 / 0.25));
@@ -202,12 +181,6 @@
 .spa-button--technical::before {
   inset: 2px;
   box-shadow: inset 0 0 0 1px rgb(59 130 246 / 0.28);
-}
-
-.spa-button--technical::after {
-  right: 14px;
-  height: 28px;
-  opacity: 0.7;
 }
 
 .spa-button--technical:hover {
@@ -232,12 +205,6 @@
 .spa-button--ai::before {
   inset: 3px;
   box-shadow: inset 0 0 0 1px rgb(59 130 246 / 0.35);
-}
-
-.spa-button--ai::after {
-  right: 14px;
-  height: 28px;
-  opacity: 0.9;
 }
 
 .spa-button--ai:hover {

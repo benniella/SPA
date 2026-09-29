@@ -11,8 +11,6 @@ export function Hero() {
         <div className="hero-grid">
           <div className="stack stack-6">
             <Reveal from="none" className="stack stack-4">
-              <p className="eyebrow">{HERO.eyebrow}</p>
-
               <h1 id="hero-headline" className="heading-display hero-headline">
                 {HERO.headlineLines.map((line) => (
                   <span key={line} style={{ display: "block" }}>

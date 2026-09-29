@@ -1053,16 +1053,6 @@
   text-wrap: pretty;
 }
 
-/* The divide between model-driven stages and computation over their output. */
-.engine-stage-boundary {
-  position: absolute;
-  top: 0;
-  right: calc(-1 * var(--space-3) - 1px);
-  bottom: 0;
-  width: 2px;
-  background-color: var(--color-accent-secondary);
-}
-
 .engine-legend {
   display: flex;
   flex-wrap: wrap;

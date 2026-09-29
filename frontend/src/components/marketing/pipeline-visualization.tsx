@@ -422,10 +422,6 @@ export function EnginePipelineVisualization() {
               </span>
               <span className="engine-stage-label">{stage.label}</span>
               <span className="engine-stage-output">{stage.output}</span>
-              {/* The boundary between model-driven and computed stages. */}
-              {index === visionCount - 1 ? (
-                <span className="engine-stage-boundary" aria-hidden="true" />
-              ) : null}
             </motion.li>
           ))}
         </ol>
