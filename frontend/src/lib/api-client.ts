@@ -1,4 +1,4 @@
-import { apiUrl } from "@/lib/config";
+import { apiUrl, apiConfigured } from "@/lib/config";
 import { ApiError, NetworkError, toApiError } from "@/lib/api-errors";
 
 export interface RequestOptions {
@@ -21,6 +21,13 @@ async function request<T>(
 ): Promise<T> {
   const timeoutController = new AbortController();
   const timeout = setTimeout(() => timeoutController.abort(), DEFAULT_TIMEOUT_MS);
+
+  // Without a configured base, 'fetch("")' would request the current page and
+  // fail as malformed JSON. Report the real cause instead.
+  if (!apiConfigured) {
+    clearTimeout(timeout);
+    throw new NetworkError("The SPA API is not configured for this deployment.");
+  }
 
   const signal = options.signal
     ? AbortSignal.any([options.signal, timeoutController.signal])
