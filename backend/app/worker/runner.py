@@ -9,6 +9,7 @@ from app.application.ports.job_queue import JobQueue
 from app.application.ports.processing import ProcessingContext, ProcessingPipeline
 from app.application.ports.unit_of_work import UnitOfWorkFactory
 from app.application.use_cases.metrics import METRICS_JOB_TYPE
+from app.application.use_cases.reports import REPORT_JOB_TYPE
 from app.core.errors import AppError
 from app.domain.jobs.entities import JobStatus, ProcessingJob
 from app.domain.shared import JobId, VideoId
@@ -48,6 +49,7 @@ class JobWorker:
         queue: JobQueue,
         pipeline: ProcessingPipeline,
         metrics_pipeline: ProcessingPipeline | None = None,
+        report_pipeline: ProcessingPipeline | None = None,
         on_event: Callable[[ProcessingJob], object] | None = None,
     ) -> None:
         self._uow_factory = uow_factory
@@ -56,11 +58,16 @@ class JobWorker:
         # Metric calculation is a second stage over the same tracking data, not a
         # different job system: it implements the same port and runs here.
         self._metrics_pipeline = metrics_pipeline
+        # Report composition likewise implements the same port, so it needs no
+        # queue, worker or lifecycle of its own.
+        self._report_pipeline = report_pipeline
         self._on_event = on_event
 
     def _pipeline_for(self, job: ProcessingJob) -> ProcessingPipeline:
         if job.job_type == METRICS_JOB_TYPE and self._metrics_pipeline is not None:
             return self._metrics_pipeline
+        if job.job_type == REPORT_JOB_TYPE and self._report_pipeline is not None:
+            return self._report_pipeline
         return self._pipeline
 
     async def run_once(self, *, timeout_seconds: int = 5) -> bool:

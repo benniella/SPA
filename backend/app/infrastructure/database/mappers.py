@@ -8,6 +8,15 @@ from __future__ import annotations
 
 from typing import cast
 
+from app.domain.admin.entities import (
+    AdminId,
+    AdminIdentity,
+    AdminInvitation,
+    AdminInvitationId,
+    AdminMfaChallenge,
+    AdminRole,
+    AdminStatus,
+)
 from app.domain.analysis.entities import (
     AnalysisPipelineSpec,
     AnalysisRun,
@@ -26,6 +35,17 @@ from app.domain.metrics.types import (
 from app.domain.organizations.entities import Organization, OrganizationMembership
 from app.domain.players.entities import Player, TeamMembership
 from app.domain.reports.entities import Report, ReportScope
+from app.domain.security.entities import (
+    Challenge,
+    ChallengeKind,
+    OtpChallenge,
+    OtpPurpose,
+    SecurityEvent,
+    SecurityEventId,
+    SecurityEventType,
+    Session,
+    SessionId,
+)
 from app.domain.shared import (
     AnalysisRunId,
     JobId,
@@ -44,16 +64,23 @@ from app.domain.shared import (
 )
 from app.domain.teams.entities import Team
 from app.domain.tracking.entities import TrackedObservation, TrackingDataset, TrackRecord
-from app.domain.users.entities import Email, User
+from app.domain.users.entities import AccountStatus, Email, User
 from app.domain.videos.entities import Video, VideoStatus
 from app.infrastructure.database.models import (
+    AdminInvitationModel,
+    AdminMfaChallengeModel,
     AnalysisRunModel,
     MatchModel,
     OrganizationMembershipModel,
     OrganizationModel,
+    OtpChallengeModel,
+    PlatformAdminModel,
     PlayerModel,
     ProcessingJobModel,
     ReportModel,
+    SecurityChallengeModel,
+    SecurityEventModel,
+    SessionModel,
     TeamMembershipModel,
     TeamModel,
     TrackingDatasetModel,
@@ -129,6 +156,13 @@ def user_to_domain(model: UserModel) -> User:
         display_name=model.display_name,
         id=UserId(model.id),
         is_active=model.is_active,
+        account_status=AccountStatus(model.account_status),
+        password_hash=model.password_hash,
+        email_verified_at=model.email_verified_at,
+        phone_number=model.phone_number,
+        phone_verified_at=model.phone_verified_at,
+        last_login_at=model.last_login_at,
+        password_changed_at=model.password_changed_at,
     )
     user.created_at = model.created_at
     user.updated_at = model.updated_at
@@ -141,7 +175,142 @@ def user_to_model(entity: User) -> UserModel:
         email=entity.email.value,
         display_name=entity.display_name,
         is_active=entity.is_active,
+        account_status=str(entity.account_status),
+        password_hash=entity.password_hash,
+        email_verified_at=entity.email_verified_at,
+        phone_number=entity.phone_number,
+        phone_verified_at=entity.phone_verified_at,
+        last_login_at=entity.last_login_at,
+        password_changed_at=entity.password_changed_at,
     )
+
+
+def apply_user_to_model(entity: User, model: UserModel) -> None:
+    """Copy mutable account state onto an existing row."""
+    model.email = entity.email.value
+    model.display_name = entity.display_name
+    model.is_active = entity.is_active
+    model.account_status = str(entity.account_status)
+    model.password_hash = entity.password_hash
+    model.email_verified_at = entity.email_verified_at
+    model.phone_number = entity.phone_number
+    model.phone_verified_at = entity.phone_verified_at
+    model.last_login_at = entity.last_login_at
+    model.password_changed_at = entity.password_changed_at
+
+
+def session_to_domain(model: SessionModel) -> Session:
+    session = Session(
+        user_id=UserId(model.user_id),
+        expires_at=model.expires_at,
+        id=SessionId(model.id),
+        last_used_at=model.last_used_at,
+        revoked_at=model.revoked_at,
+        user_agent=model.user_agent,
+        ip_prefix=model.ip_prefix,
+        mfa_verified_at=model.mfa_verified_at,
+    )
+    session.created_at = model.created_at
+    return session
+
+
+def session_to_model(entity: Session, *, token_hash: str) -> SessionModel:
+    return SessionModel(
+        id=entity.id,
+        user_id=entity.user_id,
+        token_hash=token_hash,
+        expires_at=entity.expires_at,
+        last_used_at=entity.last_used_at,
+        revoked_at=entity.revoked_at,
+        user_agent=entity.user_agent,
+        ip_prefix=entity.ip_prefix,
+    )
+
+
+def apply_session_to_model(entity: Session, model: SessionModel) -> None:
+    model.last_used_at = entity.last_used_at
+    model.revoked_at = entity.revoked_at
+    model.mfa_verified_at = entity.mfa_verified_at
+
+
+def challenge_to_domain(model: SecurityChallengeModel) -> Challenge:
+    challenge = Challenge(
+        user_id=UserId(model.user_id),
+        kind=str(ChallengeKind(model.kind)),
+        token_hash=model.token_hash,
+        expires_at=model.expires_at,
+        id=model.id,
+        destination=model.destination,
+        consumed_at=model.consumed_at,
+    )
+    challenge.created_at = model.created_at
+    return challenge
+
+
+def challenge_to_model(entity: Challenge) -> SecurityChallengeModel:
+    return SecurityChallengeModel(
+        id=entity.id,
+        user_id=entity.user_id,
+        kind=str(entity.kind),
+        token_hash=entity.token_hash,
+        destination=entity.destination,
+        expires_at=entity.expires_at,
+        consumed_at=entity.consumed_at,
+    )
+
+
+def otp_challenge_to_domain(model: OtpChallengeModel) -> OtpChallenge:
+    challenge = OtpChallenge(
+        user_id=UserId(model.user_id),
+        purpose=str(OtpPurpose(model.purpose)),
+        code_hash=model.code_hash,
+        destination=model.destination,
+        expires_at=model.expires_at,
+        id=model.id,
+        attempts=model.attempts,
+        max_attempts=model.max_attempts,
+        consumed_at=model.consumed_at,
+    )
+    challenge.created_at = model.created_at
+    return challenge
+
+
+def otp_challenge_to_model(entity: OtpChallenge) -> OtpChallengeModel:
+    return OtpChallengeModel(
+        id=entity.id,
+        user_id=entity.user_id,
+        purpose=str(entity.purpose),
+        code_hash=entity.code_hash,
+        destination=entity.destination,
+        expires_at=entity.expires_at,
+        attempts=entity.attempts,
+        max_attempts=entity.max_attempts,
+        consumed_at=entity.consumed_at,
+    )
+
+
+def security_event_to_model(entity: SecurityEvent) -> SecurityEventModel:
+    return SecurityEventModel(
+        id=entity.id,
+        user_id=entity.user_id,
+        event_type=str(entity.event_type),
+        ip_prefix=entity.ip_prefix,
+        user_agent=entity.user_agent,
+        event_metadata=dict(entity.metadata),
+    )
+
+
+def security_event_to_domain(model: SecurityEventModel) -> SecurityEvent:
+    event = SecurityEvent(
+        user_id=UserId(model.user_id) if model.user_id else None,
+        event_type=str(SecurityEventType(model.event_type)),
+        id=SecurityEventId(model.id),
+        ip_prefix=model.ip_prefix,
+        user_agent=model.user_agent,
+        metadata=dict(model.event_metadata or {}),
+    )
+    event.created_at = model.created_at
+    return event
 
 
 def team_to_domain(model: TeamModel) -> Team:
@@ -531,11 +700,15 @@ def report_to_domain(model: ReportModel) -> Report:
         scope=ReportScope(
             match_id=MatchId(model.match_id) if model.match_id else None,
             team_id=TeamId(model.team_id) if model.team_id else None,
+            analysis_run_ids=(
+                (AnalysisRunId(model.analysis_run_id),) if model.analysis_run_id else ()
+            ),
         ),
         id=ReportId(model.id),
         created_by_id=UserId(model.created_by_id) if model.created_by_id else None,
         status=ReportStatus(model.status),
         content=dict(model.content or {}),
+        definition_version=model.definition_version,
         storage_key=model.storage_key,
         error_message=model.error_message,
         generated_at=model.generated_at,
@@ -554,8 +727,129 @@ def report_to_model(entity: Report) -> ReportModel:
         status=str(entity.status),
         match_id=entity.scope.match_id,
         team_id=entity.scope.team_id,
+        analysis_run_id=entity.scope.analysis_run_id,
         content=dict(entity.content),
+        definition_version=entity.definition_version,
         storage_key=entity.storage_key,
         error_message=entity.error_message,
         generated_at=entity.generated_at,
     )
+
+
+def apply_report_to_model(entity: Report, model: ReportModel) -> None:
+    """Copy a mutated report's fields onto its persisted row."""
+    model.title = entity.title
+    model.status = str(entity.status)
+    model.match_id = entity.scope.match_id
+    model.team_id = entity.scope.team_id
+    model.analysis_run_id = entity.scope.analysis_run_id
+    model.content = dict(entity.content)
+    model.definition_version = entity.definition_version
+    model.storage_key = entity.storage_key
+    model.error_message = entity.error_message
+    model.generated_at = entity.generated_at
+
+
+def admin_to_domain(model: PlatformAdminModel) -> AdminIdentity:
+    return AdminIdentity(
+        user_id=UserId(model.user_id),
+        status=AdminStatus(model.status),
+        id=AdminId(model.id),
+        mfa_enrolled_at=model.mfa_enrolled_at,
+        created_at=model.created_at,
+        updated_at=model.updated_at,
+    )
+
+
+def admin_to_model(entity: AdminIdentity) -> PlatformAdminModel:
+    model = PlatformAdminModel(
+        id=entity.id,
+        user_id=entity.user_id,
+        status=str(entity.status),
+        mfa_enrolled_at=entity.mfa_enrolled_at,
+    )
+    _apply_admin_status_times(entity, model)
+    return model
+
+
+def apply_admin_to_model(entity: AdminIdentity, model: PlatformAdminModel) -> None:
+    model.status = str(entity.status)
+    model.mfa_enrolled_at = entity.mfa_enrolled_at
+    _apply_admin_status_times(entity, model)
+
+
+def _apply_admin_status_times(entity: AdminIdentity, model: PlatformAdminModel) -> None:
+    status = str(entity.status)
+    if status == AdminStatus.SUSPENDED and model.suspended_at is None:
+        model.suspended_at = entity.updated_at
+    if status == AdminStatus.REVOKED and model.revoked_at is None:
+        model.revoked_at = entity.updated_at
+
+
+def admin_invitation_to_domain(
+    model: AdminInvitationModel,
+    *,
+    role_name: str,
+) -> AdminInvitation:
+    return AdminInvitation(
+        email=model.email,
+        role=AdminRole(role_name),
+        token_hash=model.token_hash,
+        expires_at=model.expires_at,
+        invited_by=UserId(model.invited_by) if model.invited_by else None,
+        id=AdminInvitationId(model.id),
+        created_at=model.created_at,
+        accepted_at=model.accepted_at,
+        revoked_at=model.revoked_at,
+    )
+
+
+def admin_invitation_to_model(
+    entity: AdminInvitation,
+    *,
+    role_id: object,
+) -> AdminInvitationModel:
+    return AdminInvitationModel(
+        id=entity.id,
+        email=entity.email,
+        role_id=role_id,
+        token_hash=entity.token_hash,
+        invited_by=entity.invited_by,
+        expires_at=entity.expires_at,
+        accepted_at=entity.accepted_at,
+        revoked_at=entity.revoked_at,
+    )
+
+
+def admin_mfa_challenge_to_domain(model: AdminMfaChallengeModel) -> AdminMfaChallenge:
+    challenge = AdminMfaChallenge(
+        admin_id=AdminId(model.admin_id),
+        session_id=model.session_id,
+        expires_at=model.expires_at,
+        id=model.id,
+        attempts=model.attempts,
+        max_attempts=model.max_attempts,
+        created_at=model.created_at,
+        satisfied_at=model.satisfied_at,
+    )
+    return challenge
+
+
+def admin_mfa_challenge_to_model(entity: AdminMfaChallenge) -> AdminMfaChallengeModel:
+    return AdminMfaChallengeModel(
+        id=entity.id,
+        admin_id=entity.admin_id,
+        session_id=entity.session_id,
+        expires_at=entity.expires_at,
+        satisfied_at=entity.satisfied_at,
+        attempts=entity.attempts,
+        max_attempts=entity.max_attempts,
+    )
+
+
+def apply_admin_mfa_challenge_to_model(
+    entity: AdminMfaChallenge,
+    model: AdminMfaChallengeModel,
+) -> None:
+    model.attempts = entity.attempts
+    model.satisfied_at = entity.satisfied_at

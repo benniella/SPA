@@ -86,6 +86,58 @@ class AuthenticationError(AppError):
     status_code = 401
 
 
+class SessionExpiredError(AuthenticationError):
+    """The presented session is expired or revoked.
+
+    Distinct from a missing credential so the frontend can tell "sign in" apart
+    from "your session ended", which is what lets it explain the redirect instead
+    of appearing to have lost the user's work.
+    """
+
+    code = "session_expired"
+
+
+class AccountNotActiveError(AppError):
+    """The account exists but may not authenticate right now.
+
+    Deliberately vague in the response body: whether an account is suspended or
+    deactivated is useful to its owner in the account page and not to an
+    unauthenticated caller who guessed the password.
+    """
+
+    code = "account_not_active"
+    status_code = 403
+
+
+class EmailDeliveryError(AppError):
+    """A message could not be handed to a provider."""
+
+    code = "email_delivery_failed"
+    status_code = 503
+
+
+class RateLimitedError(AppError):
+    """Too many attempts. The caller should retry after the stated delay."""
+
+    code = "rate_limited"
+    status_code = 429
+
+    def __init__(
+        self,
+        message: str | None = None,
+        *,
+        details: dict[str, Any] | None = None,
+        retry_after_seconds: int | None = None,
+    ) -> None:
+        payload = dict(details or {})
+        if retry_after_seconds is not None:
+            payload["retry_after_seconds"] = retry_after_seconds
+            self.retry_after_seconds = retry_after_seconds
+        super().__init__(message, details=payload)
+
+    retry_after_seconds: int | None = None
+
+
 class UnsupportedMediaError(AppError):
     """The uploaded media is of an unsupported type or is unreadable."""
 

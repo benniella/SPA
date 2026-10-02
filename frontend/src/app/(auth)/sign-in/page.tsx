@@ -4,208 +4,129 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
-import { BrandMark } from "@/components/brand/brand-mark";
-import { Banner } from "@/components/ui/banner";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { AuthPageShell } from "@/components/auth/auth-shell";
+import { PasswordInput } from "@/components/auth/password-input";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { apiErrorFor, Field, FormError } from "@/components/ui/form";
+import { CheckboxField } from "@/components/ui/checkbox-field";
+import { EmailField } from "@/components/ui/email-field";
+import { FormError, apiErrorFor } from "@/components/ui/form";
 import { LoadingState } from "@/components/ui/loading-state";
-import { Container } from "@/components/ui/section";
 import { isProtectedPath } from "@/data/app-navigation";
 import { SessionProvider, useSession } from "@/features/auth/session";
-import { slugify } from "@/features/teams";
 import { useApiMutation } from "@/hooks/use-api-mutation";
-import { createOrganization } from "@/services/organizations";
-import type { Organization } from "@/types/api";
+import { isValidEmail } from "@/lib/validators";
+import { login } from "@/services/auth";
 
 export default function SignInPage() {
   return (
     <SessionProvider>
-      <Container width="narrow">
-        <div className="stack stack-6" style={{ paddingBlock: "var(--space-9)" }}>
-          <div className="stack stack-4">
-            <BrandMark variant="full" />
-            <h1 className="heading-page">Sign in</h1>
-            <p className="text-body">Choose the workspace to work in.</p>
-          </div>
+      <AuthPageShell
+        title="Sign in"
+        description="Use the email address and password for your SPA account."
+      >
+        <Suspense fallback={<LoadingState label="Loading" rows={3} />}>
+          <SignInForm />
+        </Suspense>
 
-          <Banner tone="warning" title="Sign-in is not available yet">
-            <p>
-              Accounts, sign-in and permissions are still being built. Until they arrive, choosing a
-              workspace opens the application in this browser only.
-            </p>
-          </Banner>
-
-          {/* 'useSearchParams' needs a Suspense boundary, or the whole page opts out
-              of static rendering. */}
-          <Suspense fallback={<LoadingState label="Loading workspaces" rows={3} />}>
-            <WorkspaceEntry />
-          </Suspense>
-
-          <p className="text-caption">
-            <Link className="app-row-link" href="/">
-              Back to the SPA overview
-            </Link>
-          </p>
-        </div>
-      </Container>
+        <p className="text-caption">
+          No account yet?{" "}
+          <Link className="app-row-link" href="/sign-up">
+            Create one
+          </Link>
+        </p>
+      </AuthPageShell>
     </SessionProvider>
   );
 }
 
-function WorkspaceEntry() {
-  const { organizations, organizationsStatus, selectWorkspace, refreshOrganizations } =
-    useSession();
+function SignInForm() {
+  const { refresh } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
-
   const from = safeReturnPath(searchParams.get("from"));
 
-  function enter(organization: Organization) {
-    selectWorkspace(organization);
-    router.replace(from);
-  }
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
+  const [emailError, setEmailError] = useState<string | undefined>();
 
-  if (organizationsStatus === "loading") {
-    return <LoadingState label="Loading workspaces" rows={3} />;
-  }
-
-  if (organizationsStatus === "error") {
-    return (
-      <Banner tone="error" title="The SPA API could not be reached">
-        <p>
-          Workspaces are read from the API, so none can be listed while it is unreachable. Until we
-          deploy the app on a server, but currently on testing locally. its is mot working as
-          expected. Please ensure the API is running — in a development machine that is{" "}
-          <code>make backend-dev</code>.
-        </p>
-      </Banner>
-    );
-  }
-
-  if (organizations.length === 0) {
-    return (
-      <div className="stack stack-5">
-        <div className="stack stack-2">
-          <h2 className="heading-subsection">Create your first workspace</h2>
-          <p className="text-body">
-            No organization exists yet. A workspace is the boundary everything else belongs to, so
-            it is the first thing to create.
-          </p>
-        </div>
-
-        <WorkspaceForm
-          submitLabel="Create and continue"
-          onCreated={(created) => {
-            refreshOrganizations();
-            enter(created);
-          }}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="stack stack-5">
-      <h2 className="heading-subsection">Choose a workspace</h2>
-
-      <ul className="ruled-list">
-        {organizations.map((organization) => (
-          <li key={organization.id} className="ruled-item">
-            <span className="stack stack-1">
-              <span className="data-table-primary">{organization.name}</span>
-              <span className="app-row-meta">{organization.slug}</span>
-            </span>
-            <Button variant="technical" size="sm" onClick={() => enter(organization)}>
-              Open
-            </Button>
-          </li>
-        ))}
-      </ul>
-
-      <Card>
-        <h3 className="heading-card">Create another workspace</h3>
-        <p className="text-caption" style={{ marginTop: "var(--space-2)" }}>
-          A separate club, academy or analysis department gets its own workspace and its own data.
-        </p>
-        <div style={{ marginTop: "var(--space-4)" }}>
-          <WorkspaceForm submitLabel="Create" onCreated={enter} />
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-function WorkspaceForm({
-  submitLabel,
-  onCreated,
-}: {
-  submitLabel: string;
-  onCreated: (organization: Organization) => void;
-}) {
-  const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
-  const [slugTouched, setSlugTouched] = useState(false);
-
-  const { state, mutate } = useApiMutation(createOrganization);
+  const { state, mutate } = useApiMutation(login);
   const submitting = state.status === "pending";
   const failure = state.status === "error" ? state.error : null;
 
-  const effectiveSlug = slugTouched ? slug : slugify(name);
-
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const created = await mutate({ name: name.trim(), slug: effectiveSlug });
-    if (created) {
-      setName("");
-      setSlug("");
-      setSlugTouched(false);
-      onCreated(created);
+
+    const trimmedEmail = email.trim();
+    if (trimmedEmail && !isValidEmail(trimmedEmail)) {
+      setEmailError("Enter a valid email address.");
+      return;
+    }
+
+    setEmailError(undefined);
+    const signedIn = await mutate({ email: trimmedEmail, password });
+    if (signedIn) {
+      refresh();
+      setRememberMe(false);
+      setPassword("");
+      router.replace(from);
     }
   }
 
   return (
-    <form className="form" onSubmit={handleSubmit} noValidate>
-      {failure ? <FormError error={failure} /> : null}
+    <Card>
+      <form className="form" onSubmit={handleSubmit} noValidate>
+        {failure ? <FormError error={failure} /> : null}
 
-      <Field
-        id="signin-org-name"
-        label="Organization name"
-        required
-        hint="For example “Riverside FC”."
-        value={name}
-        onChange={(event) => setName(event.target.value)}
-        error={apiErrorFor(failure, "name")}
-      />
+        <EmailField
+          id="signin-email"
+          label="Email address"
+          required
+          autoComplete="username"
+          value={email}
+          onChange={setEmail}
+          error={emailError ?? apiErrorFor(failure, "email")}
+        />
 
-      <Field
-        id="signin-org-slug"
-        label="Short name"
-        required
-        hint="Used in URLs. Lowercase letters, numbers and single hyphens."
-        value={effectiveSlug}
-        onChange={(event) => {
-          setSlugTouched(true);
-          setSlug(event.target.value);
-        }}
-        error={apiErrorFor(failure, "slug")}
-      />
+        <PasswordInput
+          id="signin-password"
+          label="Password"
+          required
+          autoComplete="current-password"
+          value={password}
+          onChange={setPassword}
+          error={apiErrorFor(failure, "password")}
+        />
 
-      <div className="form-actions">
-        <Button
-          type="submit"
-          variant="primary"
-          size="md"
-          disabled={submitting || name.trim() === "" || effectiveSlug === ""}
-        >
-          {submitting ? "Creating…" : submitLabel}
-        </Button>
+        <div className="auth-signin-options">
+          <CheckboxField
+            id="signin-remember"
+            label="Remember me"
+            checked={rememberMe}
+            onChange={setRememberMe}
+          />
+        </div>
 
-        <ButtonLink href="/" variant="technical" size="md">
-          Cancel
-        </ButtonLink>
-      </div>
-    </form>
+        <div className="auth-signin-links">
+          <Link className="app-row-link" href="/forgot-password">
+            Forgot your password?
+          </Link>
+        </div>
+
+        <div className="form-actions form-actions--center">
+          <Button
+            type="submit"
+            variant="primary"
+            size="md"
+            arrow={false}
+            disabled={submitting || email.trim() === "" || password === ""}
+          >
+            {submitting ? "Signing in…" : "Sign in"}
+          </Button>
+        </div>
+      </form>
+    </Card>
   );
 }
 

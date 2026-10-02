@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SessionProvider } from "@/features/auth/session";
 import { ProcessingEventsProvider } from "@/features/processing/events-provider";
 import { VideoProcessingPanel } from "@/features/processing/components/video-processing-panel";
-import type { Organization, VideoProcessing } from "@/types/api";
+import type { AuthenticatedUser, Organization, VideoProcessing } from "@/types/api";
 
 const ORGANIZATION: Organization = {
   id: "org-1",
@@ -13,6 +13,21 @@ const ORGANIZATION: Organization = {
   slug: "riverside-fc",
   created_at: "2025-01-01T00:00:00Z",
   updated_at: "2025-01-01T00:00:00Z",
+};
+
+const ACCOUNT: AuthenticatedUser = {
+  id: "user-1",
+  email: "coach@club.example",
+  display_name: "Coach",
+  account_status: "active",
+  email_verified: true,
+  phone_verified: false,
+  phone_number: null,
+  created_at: "2025-01-01T00:00:00Z",
+  last_login_at: null,
+  organizations: [
+    { id: ORGANIZATION.id, name: ORGANIZATION.name, slug: ORGANIZATION.slug, role: "owner" },
+  ],
 };
 
 function processingState(overrides: Partial<VideoProcessing> = {}): VideoProcessing {
@@ -34,11 +49,14 @@ function page<T>(items: T[]) {
 
 function stubApi(routes: Record<string, unknown>) {
   const calls: string[] = [];
+  /* The session provider resolves '/auth/me' on mount, so every page under test
+     needs that route whether or not the test is about authentication. */
+  const allRoutes: Record<string, unknown> = { "GET /auth/me": ACCOUNT, ...routes };
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input));
     const method = init?.method ?? "GET";
     calls.push(`${method} ${url.pathname}`);
-    for (const [key, payload] of Object.entries(routes)) {
+    for (const [key, payload] of Object.entries(allRoutes)) {
       const [routeMethod, routePath] = key.split(" ");
       if (url.pathname === `/api/v1${routePath}` && method === routeMethod) {
         return {
@@ -88,7 +106,7 @@ class FakeSocket {
 }
 
 function withProviders(children: React.ReactNode) {
-  window.localStorage.setItem("spa.dev.workspace", ORGANIZATION.id);
+  window.localStorage.setItem("spa.workspace", ORGANIZATION.id);
   return render(
     <SessionProvider>
       <ProcessingEventsProvider>{children}</ProcessingEventsProvider>
@@ -337,6 +355,14 @@ describe("VideoProcessingPanel actions", () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(String(input));
       const method = init?.method ?? "GET";
+      if (url.pathname === "/api/v1/auth/me") {
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers(),
+          json: async () => ACCOUNT,
+        } as Response;
+      }
       if (url.pathname === "/api/v1/organizations") {
         return {
           ok: true,

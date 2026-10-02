@@ -21,46 +21,90 @@ from httpx import AsyncClient
 pytestmark = [pytest.mark.integration, pytest.mark.usefixtures("clean_database")]
 
 
+async def _owner_headers(display_name: str = "Owner") -> dict[str, str]:
+    """Create an identity to act as, and return its header.
+
+    Organization routes require an authenticated member, so every test that
+    creates a workspace needs an identity to create it with.
+    """
+    from app.core.config import get_settings
+    from app.infrastructure.database.engine import get_session_factory
+    from app.infrastructure.database.models import UserModel
+
+    user_id = uuid.uuid4()
+    session_factory = get_session_factory(get_settings())
+    async with session_factory() as session:
+        session.add(
+            UserModel(
+                id=user_id,
+                email=f"{user_id}@example.com",
+                display_name=display_name,
+                is_active=True,
+            )
+        )
+        await session.commit()
+    return {"x-spa-user-id": str(user_id)}
+
+
+async def create_organization(
+    client: AsyncClient, *, name: str, slug: str
+) -> tuple[dict[str, object], dict[str, str]]:
+    """Create a workspace as a new authenticated owner, and return it with the caller."""
+    headers = await _owner_headers()
+    response = await client.post(
+        "/api/v1/organizations",
+        json={"name": name, "slug": slug},
+        headers=headers,
+    )
+    assert response.status_code == 201, response.text
+    return response.json(), headers
+
+
 class TestOrganizationRoundTrip:
     async def test_create_then_read(self, client: AsyncClient) -> None:
-        created = await client.post(
-            "/api/v1/organizations",
-            json={"name": "Acme FC", "slug": "acme-fc"},
+        organization, headers = await create_organization(
+            client, name="Acme FC", slug="acme-fc"
         )
-        assert created.status_code == 201, created.text
-        organization = created.json()
 
-        fetched = await client.get(f"/api/v1/organizations/{organization['id']}")
+        fetched = await client.get(f"/api/v1/organizations/{organization['id']}", headers=headers)
         assert fetched.status_code == 200
         assert fetched.json()["slug"] == "acme-fc"
 
     async def test_duplicate_slug_conflicts(self, client: AsyncClient) -> None:
-        payload = {"name": "Duplicate FC", "slug": "duplicate-fc"}
-        assert (await client.post("/api/v1/organizations", json=payload)).status_code == 201
+        _, headers = await create_organization(client, name="Duplicate FC", slug="duplicate-fc")
 
-        response = await client.post("/api/v1/organizations", json=payload)
+        response = await client.post(
+            "/api/v1/organizations",
+            json={"name": "Duplicate FC", "slug": "duplicate-fc"},
+            headers=headers,
+        )
         assert response.status_code == 409
         assert response.json()["error"]["code"] == "conflict"
 
-    async def test_missing_organization_is_not_found(self, client: AsyncClient) -> None:
-        response = await client.get("/api/v1/organizations/22222222-2222-2222-2222-222222222222")
+    async def test_creating_an_organization_requires_authentication(
+        self, client: AsyncClient
+    ) -> None:
+        response = await client.post(
+            "/api/v1/organizations", json={"name": "Acme FC", "slug": "acme-fc"}
+        )
+        assert response.status_code == 401
+
+    async def test_a_workspace_the_caller_does_not_belong_to_is_not_found(
+        self, client: AsyncClient
+    ) -> None:
+        organization, _ = await create_organization(client, name="Private FC", slug="private-fc")
+        stranger = await _owner_headers("Stranger")
+
+        response = await client.get(
+            f"/api/v1/organizations/{organization['id']}", headers=stranger
+        )
         assert response.status_code == 404
 
 
 class TestTenancyScoping:
     async def test_cross_organization_read_is_not_found(self, client: AsyncClient) -> None:
-        first = (
-            await client.post(
-                "/api/v1/organizations",
-                json={"name": "Org One", "slug": "org-one"},
-            )
-        ).json()
-        second = (
-            await client.post(
-                "/api/v1/organizations",
-                json={"name": "Org Two", "slug": "org-two"},
-            )
-        ).json()
+        first, owner_headers = await create_organization(client, name="Org One", slug="org-one")
+        second, _ = await create_organization(client, name="Org Two", slug="org-two")
 
         team = (
             await client.post(
@@ -70,28 +114,40 @@ class TestTenancyScoping:
                     "name": "First Team",
                     "slug": "first-team",
                 },
+                headers=owner_headers,
             )
         ).json()
 
-        # Listing under the wrong organization must return nothing...
-        listed = await client.get("/api/v1/teams", params={"organization_id": second["id"]})
-        assert listed.json()["items"] == []
+        # A member of the other organization, not of the first one.
+        stranger = await _owner_headers("Stranger")
+
+        listed = await client.get(
+            "/api/v1/teams", params={"organization_id": first["id"]}, headers=stranger
+        )
+        assert listed.status_code == 404
 
         # ...and fetching by id must not confirm that it exists.
         fetched = await client.get(
             f"/api/v1/teams/{team['id']}",
-            params={"organization_id": second["id"]},
+            params={"organization_id": first["id"]},
+            headers=stranger,
         )
         assert fetched.status_code == 404
+
+        # The owner can still see their own team.
+        own = await client.get(
+            f"/api/v1/teams/{team['id']}",
+            params={"organization_id": first["id"]},
+            headers=owner_headers,
+        )
+        assert own.status_code == 200
+        assert second["id"] != first["id"]
 
 
 class TestVideoWorkflow:
     async def _organization(self, client: AsyncClient, *, slug: str = "video-fc") -> str:
-        response = await client.post(
-            "/api/v1/organizations",
-            json={"name": "Video FC", "slug": slug},
-        )
-        return response.json()["id"]
+        organization, _ = await create_organization(client, name="Video FC", slug=slug)
+        return str(organization["id"])
 
     async def _member(
         self,
@@ -353,12 +409,9 @@ class TestVideoWorkflow:
 
 class TestPlayerSquadResolution:
     async def test_listing_players_accepts_a_historical_date(self, client: AsyncClient) -> None:
-        organization = (
-            await client.post(
-                "/api/v1/organizations",
-                json={"name": "Squad FC", "slug": "squad-fc"},
-            )
-        ).json()
+        organization, headers = await create_organization(
+            client, name="Squad FC", slug="squad-fc"
+        )
         team = (
             await client.post(
                 "/api/v1/teams",
@@ -367,11 +420,13 @@ class TestPlayerSquadResolution:
                     "name": "Under 18",
                     "slug": "under-18",
                 },
+                headers=headers,
             )
         ).json()
         await client.post(
             "/api/v1/players",
             json={"organization_id": organization["id"], "display_name": "A Player"},
+            headers=headers,
         )
 
         response = await client.get(
@@ -381,6 +436,7 @@ class TestPlayerSquadResolution:
                 "team_id": team["id"],
                 "on_date": "2025-09-01",
             },
+            headers=headers,
         )
 
         # Resolving a squad for a past date is a supported query shape from day

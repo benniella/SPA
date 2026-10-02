@@ -6,23 +6,22 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field
 
 from app.schemas.common import ApiModel, PageMeta
+from app.schemas.metrics import MetricNameLiteral, MetricSpaceLiteral, MetricUnitLiteral
 
+ReportStatusLiteral = Literal["draft", "generating", "ready", "failed"]
 
-class ReportCreate(ApiModel):
-    organization_id: uuid.UUID
-    title: str = Field(min_length=1, max_length=300)
-    match_id: uuid.UUID | None = None
-    team_id: uuid.UUID | None = None
-    analysis_run_ids: list[uuid.UUID] = Field(default_factory=list)
-
-    @model_validator(mode="after")
-    def _scope_present(self) -> ReportCreate:
-        if self.match_id is None and self.team_id is None and not self.analysis_run_ids:
-            raise ValueError("Provide match_id, team_id or analysis_run_ids.")
-        return self
+ObservationTypeLiteral = Literal[
+    "highest_observation_count",
+    "highest_coverage",
+    "highest_displacement",
+    "highest_average_speed",
+    "highest_peak_speed",
+    "highest_peak_acceleration",
+    "longest_duration",
+]
 
 
 class ReportRead(ApiModel):
@@ -30,7 +29,9 @@ class ReportRead(ApiModel):
     organization_id: uuid.UUID
     created_by_id: uuid.UUID | None
     title: str
-    status: Literal["draft", "generating", "ready", "failed"]
+    status: ReportStatusLiteral
+    definition_version: str
+    analysis_run_id: uuid.UUID | None
     match_id: uuid.UUID | None
     team_id: uuid.UUID | None
     storage_key: str | None
@@ -43,3 +44,66 @@ class ReportRead(ApiModel):
 class ReportList(ApiModel):
     items: list[ReportRead]
     meta: PageMeta
+
+
+class ReportOverviewRead(ApiModel):
+    analysis_run_id: uuid.UUID
+    analysis_status: str
+    video_id: uuid.UUID
+    video_filename: str
+    match_id: uuid.UUID | None
+    analysis_created_at: datetime
+    analysis_finished_at: datetime | None
+    source_width: int | None
+    source_height: int | None
+    observation_count: int = Field(ge=0)
+    track_count: int = Field(ge=0)
+    metric_definition_version: str
+    space: MetricSpaceLiteral
+
+
+class ReportMetricRead(ApiModel):
+    name: MetricNameLiteral
+    unit: MetricUnitLiteral
+    availability: Literal["available", "unavailable"]
+    value: float | None = None
+    sample_count: int = Field(ge=0)
+
+
+class ReportTrackRead(ApiModel):
+    track_id: int = Field(ge=0)
+    space: MetricSpaceLiteral
+    metrics: list[ReportMetricRead]
+
+
+class ReportObservationRead(ApiModel):
+    type: ObservationTypeLiteral
+    track_ids: list[int]
+    metric_name: MetricNameLiteral
+    unit: MetricUnitLiteral
+    space: MetricSpaceLiteral
+    value: float
+    message: str
+
+
+class ReportContentRead(ApiModel):
+    definition_version: str
+    overview: ReportOverviewRead
+    tracks: list[ReportTrackRead]
+    observations: list[ReportObservationRead]
+    limitations: list[str]
+
+
+class ReportDetailRead(ReportRead):
+    """A report together with its snapshot body, when one has been generated."""
+
+    content: ReportContentRead | None = None
+
+
+class ReportExportRead(ApiModel):
+    """A stored report export. The storage key is deliberately not exposed."""
+
+    report_id: uuid.UUID
+    filename: str
+    content_type: str
+    download_url: str

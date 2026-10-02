@@ -61,13 +61,20 @@
   pointer-events: none;
 }
 
-/* The rail sits centred in the mark zone, which is the gap between the label and the
-   start of the chamfer: at the shared geometry that is 28px (56px less the 22px the
-   diagonal takes of it), so 14px lands it with equal clearance either side. The
-   skew is perpendicular to the chamfer's own 22deg slant, which is what makes it read
-   as parallel to the diagonal rather than as a vertical tick beside it. */
+/* The rail is drawn in the mark zone rather than laid out inside it: the skew is
+   perpendicular to the chamfer's 22deg slant, which is what makes it read as
+   parallel to the diagonal instead of as a vertical tick beside it. */
 .spa-button--arrowless {
-  padding-right: 84px;
+  padding: 0 28px;
+}
+
+/* The button centres its content across the padding box, which the asymmetric base
+   padding shifts left. Stretching the row to the border box and centring inside it
+   puts the label on the middle of the button instead. */
+.spa-button--arrowless .spa-button__content {
+  position: static;
+  width: calc(100% + 56px);
+  margin-inline: -28px;
 }
 
 .spa-button--nav-sign-in {

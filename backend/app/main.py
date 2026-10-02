@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.exception_handlers import register_exception_handlers
+from app.api.middleware import CsrfMiddleware
 from app.api.v1 import api_router
 from app.api.websocket import WebSocketAuthenticator, register_websocket_routes
 from app.application.ports.job_queue import JobQueue
@@ -23,8 +24,11 @@ from app.infrastructure.database.engine import dispose_engine, get_session_facto
 from app.infrastructure.database.unit_of_work import SqlAlchemyUnitOfWorkFactory
 from app.infrastructure.jobs.dispatcher import QueuedJobDispatcher, RecordingJobQueue
 from app.infrastructure.jobs.keydb_queue import KeyDbJobQueue
+from app.infrastructure.notifications.factory import build_email_sender, build_sms_sender
 from app.infrastructure.realtime.hub import InProcessEventHub
 from app.infrastructure.realtime.keydb_events import KeyDbEventBridge
+from app.infrastructure.security.passwords import Pbkdf2PasswordHasher
+from app.infrastructure.security.rate_limiter import KeyDbRateLimiter, ProcessRateLimiter
 from app.infrastructure.storage.local import LocalVideoStorage
 
 logger = logging.getLogger(__name__)
@@ -95,6 +99,17 @@ def build_video_storage(settings: Settings) -> LocalVideoStorage:
     return LocalVideoStorage(settings)
 
 
+def build_rate_limiter(settings: Settings) -> object:
+    """Create the rate-limit counter store.
+
+    'keydb' is the shared counter a multi-process deployment needs; 'process' is
+    correct for a single process and is the development default.
+    """
+    if settings.rate_limit_store == "keydb":
+        return KeyDbRateLimiter(settings.keydb_url, database=settings.keydb_database)
+    return ProcessRateLimiter()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Startup and shutdown: build adapters, then release them."""
@@ -104,6 +119,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.job_queue = job_queue
     app.state.job_dispatcher = build_job_dispatcher(settings, job_queue)
     app.state.video_storage = build_video_storage(settings)
+    app.state.password_hasher = Pbkdf2PasswordHasher()
+    app.state.rate_limiter = build_rate_limiter(settings)
+    app.state.email_sender = build_email_sender(settings)
+    app.state.sms_sender = build_sms_sender(settings)
 
     event_hub = InProcessEventHub()
     app.state.event_hub = event_hub
@@ -126,6 +145,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "environment": settings.environment,
             "job_backend": settings.job_backend,
             "storage_backend": settings.storage_backend,
+            "email_backend": settings.email_backend,
+            "rate_limit_store": settings.rate_limit_store,
         },
     )
 
@@ -155,6 +176,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
         openapi_tags=[
             {"name": "health", "description": "Liveness and readiness probes."},
+            {"name": "auth", "description": "Registration, sign-in and email verification."},
+            {"name": "account", "description": "Sessions, contact details and security activity."},
             {"name": "organizations", "description": "Tenancy workspaces."},
             {"name": "users", "description": "Identity records."},
             {"name": "teams", "description": "Squads within an organization."},
@@ -185,6 +208,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             TrustedHostMiddleware,
             allowed_hosts=settings.allowed_host_list or ["*"],
         )
+
+    app.add_middleware(
+        CsrfMiddleware,
+        cookie_name=settings.csrf_cookie_name,
+        header_name=settings.csrf_header_name,
+        enabled=not settings.is_local or settings.csrf_enabled_locally,
+    )
 
     app.include_router(api_router, prefix=settings.api_v1_prefix)
     register_websocket_routes(app, settings)

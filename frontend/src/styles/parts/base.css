@@ -322,19 +322,15 @@ ol {
   justify-content: center;
   width: var(--control-height-md);
   height: var(--control-height-md);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background-color: transparent;
+  border: 0;
+  background: transparent;
   color: var(--color-foreground);
   cursor: pointer;
-  transition:
-    background-color var(--duration-fast) var(--ease-standard),
-    border-color var(--duration-fast) var(--ease-standard);
+  transition: color var(--duration-fast) var(--ease-standard);
 }
 
 .nav-toggle:hover {
-  background-color: var(--color-surface);
-  border-color: var(--color-border-strong);
+  color: var(--color-accent);
 }
 
 /* The overlay is portalled to the body: '.nav-shell' carries a 'backdrop-filter',

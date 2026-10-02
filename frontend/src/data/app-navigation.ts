@@ -30,6 +30,7 @@ export const MOBILE_NAV_ITEMS: readonly AppNavItem[] = APP_NAV_ITEMS.filter(
 export const PROTECTED_PREFIXES: readonly string[] = [
   ...APP_NAV_ITEMS.map((item) => item.href),
   ...APP_SECONDARY_ITEMS.map((item) => item.href),
+  "/admin",
 ] as const;
 
 export function isProtectedPath(pathname: string): boolean {

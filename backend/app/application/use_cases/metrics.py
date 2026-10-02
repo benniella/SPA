@@ -121,10 +121,11 @@ async def get_analysis_metrics(
             details={"status": str(run.status)},
         )
 
-    return _group(run, records)
+    return group_track_metrics(run, records)
 
 
-def _group(run: AnalysisRun, records: list[TrackMetricRecord]) -> AnalysisMetrics:
+def group_track_metrics(run: AnalysisRun, records: list[TrackMetricRecord]) -> AnalysisMetrics:
+    """Group a run's persisted metric rows by track, in catalogue order."""
     by_track: dict[int, list[TrackMetricRecord]] = {}
     for record in records:
         by_track.setdefault(record.track_id, []).append(record)

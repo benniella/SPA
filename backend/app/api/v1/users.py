@@ -2,55 +2,25 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter
 
-from app.api.dependencies import UnitOfWorkDep
-from app.api.v1.params import Pagination, pagination
+from app.api.dependencies import CurrentUserDep, UnitOfWorkDep
 from app.api.v1.presenters import user_payload
-from app.core.errors import ConflictError, NotFoundError
+from app.core.errors import NotFoundError
 from app.domain.shared import UserId
-from app.domain.users.entities import Email, User
 from app.schemas.common import ErrorResponse
-from app.schemas.users import UserCreate, UserList, UserRead
+from app.schemas.users import UserRead
 
 router = APIRouter()
 
 
-@router.post(
-    "",
+@router.get(
+    "/me",
     response_model=UserRead,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create a user",
-    description=(
-        "Creates the identity record only. Credentials and sessions are not "
-        "implemented yet — see 'docs/architecture/overview.md'."
-    ),
-    responses={409: {"model": ErrorResponse, "description": "Email already registered."}},
+    summary="The authenticated identity record",
 )
-async def create_user(payload: UserCreate, uow: UnitOfWorkDep) -> UserRead:
-    async with uow:
-        existing = await uow.users.get_by_email(str(payload.email))
-        if existing is not None:
-            raise ConflictError("A user with this email already exists.")
-
-        user = User(email=Email(str(payload.email)), display_name=payload.display_name)
-        await uow.users.add(user)
-        await uow.commit()
-
+async def read_self(user: CurrentUserDep) -> UserRead:
     return UserRead.model_validate(user_payload(user))
-
-
-@router.get("", response_model=UserList, summary="List users")
-async def list_users(
-    uow: UnitOfWorkDep,
-    page: Pagination = Depends(pagination),
-) -> UserList:
-    async with uow:
-        users = await uow.users.list(limit=page.limit, offset=page.offset)
-    return UserList(
-        items=[UserRead.model_validate(user_payload(user)) for user in users],
-        meta=page.meta(len(users)),
-    )
 
 
 @router.get(
@@ -59,9 +29,26 @@ async def list_users(
     summary="Get a user",
     responses={404: {"model": ErrorResponse, "description": "Not found."}},
 )
-async def get_user(user_id: uuid.UUID, uow: UnitOfWorkDep) -> UserRead:
+async def get_user(user_id: uuid.UUID, user: CurrentUserDep, uow: UnitOfWorkDep) -> UserRead:
+    """Read an identity record within the caller's own tenancy.
+
+    A caller may read their own record and the records of people who share an
+    organization with them. Anything else is reported as absent: the endpoint must
+    not become a way to confirm which user ids exist platform-wide.
+    """
+    if user_id == user.id:
+        return UserRead.model_validate(user_payload(user))
+
     async with uow:
-        user = await uow.users.get(UserId(user_id))
-    if user is None:
-        raise NotFoundError(f"User {user_id} does not exist.")
-    return UserRead.model_validate(user_payload(user))
+        target = await uow.users.get(UserId(user_id))
+        if target is None or not await _shares_organization(uow, user.id, target.id):
+            raise NotFoundError(f"User {user_id} does not exist.")
+    return UserRead.model_validate(user_payload(target))
+
+
+async def _shares_organization(uow: UnitOfWorkDep, left: UserId, right: UserId) -> bool:
+    mine = {str(m.organization_id) for m in await uow.organizations.list_for_user(left)}
+    if not mine:
+        return False
+    theirs = await uow.organizations.list_for_user(right)
+    return any(str(m.organization_id) in mine for m in theirs)

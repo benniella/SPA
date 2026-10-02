@@ -7,5 +7,12 @@ export const metadata: Metadata = {
 };
 
 export default function AuthLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <main>{children}</main>;
+  return (
+    <>
+      <a className="skip-link" href="#auth-main">
+        Skip to content
+      </a>
+      {children}
+    </>
+  );
 }

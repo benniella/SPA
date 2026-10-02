@@ -7,6 +7,7 @@ Collections are paginated because these tables grow large.
 
 from __future__ import annotations
 
+import builtins
 from typing import Protocol, runtime_checkable
 
 from app.domain.analysis.entities import AnalysisRun, AnalysisRunStatus
@@ -17,6 +18,12 @@ from app.domain.metrics.types import TrackMetricRecord
 from app.domain.organizations.entities import Organization, OrganizationMembership
 from app.domain.players.entities import Player
 from app.domain.reports.entities import Report
+from app.domain.security.entities import (
+    Challenge,
+    OtpChallenge,
+    SecurityEvent,
+    Session,
+)
 from app.domain.shared import (
     AnalysisRunId,
     JobId,
@@ -54,6 +61,10 @@ class OrganizationRepository(Protocol):
 
     async def delete(self, organization: Organization) -> None: ...
 
+    async def add_membership(self, membership: OrganizationMembership) -> None: ...
+
+    async def list_for_user(self, user_id: UserId) -> builtins.list[OrganizationMembership]: ...
+
     async def get_membership(
         self,
         organization_id: OrganizationId,
@@ -70,6 +81,106 @@ class UserRepository(Protocol):
     async def get_by_email(self, email: str) -> User | None: ...
 
     async def list(self, *, limit: int = 50, offset: int = 0) -> list[User]: ...
+
+    async def update(self, user: User) -> None:
+        """Persist mutations made to an existing account."""
+
+
+@runtime_checkable
+class SessionRepository(Protocol):
+    """Server-controlled sessions.
+
+    Every read is by token hash or by (user, id) pair: a session must never be
+    resolvable from an identifier alone, because that would let one account's
+    session id be used to read another's session.
+    """
+
+    async def add(self, session: Session, *, token_hash: str) -> None: ...
+
+    async def get_by_token_hash(self, token_hash: str) -> Session | None: ...
+
+    async def get_for_user(self, session_id: object, user_id: UserId) -> Session | None: ...
+
+    async def list_for_user(self, user_id: UserId) -> list[Session]: ...
+
+    async def update(self, session: Session) -> None: ...
+
+    async def revoke_all_for_user(
+        self, user_id: UserId, *, except_session_id: object = None
+    ) -> int:
+        """Revoke every live session for a user, optionally sparing one."""
+
+
+@runtime_checkable
+class SecurityChallengeRepository(Protocol):
+    async def add(self, challenge: Challenge) -> None: ...
+
+    async def get_by_token_hash(self, token_hash: str) -> Challenge | None: ...
+
+    async def consume(self, challenge: Challenge) -> None: ...
+
+    async def invalidate_active(
+        self,
+        user_id: UserId,
+        kind: str,
+    ) -> int:
+        """Consume every outstanding challenge of this kind for an account.
+
+        Called before issuing a replacement so that a resend does not leave a
+        trail of live links behind it.
+        """
+
+    async def latest_for_user(self, user_id: UserId, kind: str) -> Challenge | None:
+        """The most recently issued challenge, used for the resend cooldown."""
+
+
+@runtime_checkable
+class OtpChallengeRepository(Protocol):
+    async def add(self, challenge: OtpChallenge) -> None: ...
+
+    async def latest_for_user(self, user_id: UserId, purpose: str) -> OtpChallenge | None: ...
+
+    async def update(self, challenge: OtpChallenge) -> None: ...
+
+    async def invalidate_active(self, user_id: UserId, purpose: str) -> int: ...
+
+
+@runtime_checkable
+class SecurityEventRepository(Protocol):
+    """Append and read. Deliberately has no update or delete method."""
+
+    async def add(self, event: SecurityEvent) -> None: ...
+
+    async def list_for_user(
+        self,
+        user_id: UserId,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        event_type: str | None = None,
+    ) -> list[SecurityEvent]: ...
+
+    async def list_administrative(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        event_type: str | None = None,
+    ) -> list[SecurityEvent]:
+        """Platform-wide audit records, for administrators entitled to read them."""
+
+    async def count_recent(
+        self,
+        user_id: UserId | None,
+        event_type: str,
+        *,
+        since: object,
+    ) -> int:
+        """How many events of this type have occurred since a moment.
+
+        Backs the suspicious-login signal; bounded by 'since' so the count stays
+        cheap on a busy table.
+        """
 
 
 @runtime_checkable
@@ -304,6 +415,20 @@ class ReportRepository(Protocol):
     async def add(self, report: Report) -> None: ...
 
     async def get(self, report_id: ReportId) -> Report | None: ...
+
+    async def update(self, report: Report) -> None:
+        """Persist mutations made to an existing report."""
+
+    async def find_for_run(
+        self,
+        organization_id: OrganizationId,
+        run_id: AnalysisRunId,
+    ) -> Report | None:
+        """The run-scoped report for an analysis run, if one exists.
+
+        A direct lookup rather than a scan of the organization's reports: the run
+        is a column, so the request path does not grow with report volume.
+        """
 
     async def list_for_organization(
         self,

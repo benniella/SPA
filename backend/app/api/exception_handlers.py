@@ -8,6 +8,12 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.application.admin_authz import (
+    AdministratorMayNotAct,
+    MfaNotSatisfied,
+    MissingPrivilege,
+    NotAnAdministrator,
+)
 from app.core.config import Settings
 from app.core.errors import AppError
 
@@ -29,6 +35,22 @@ def register_exception_handlers(app: FastAPI, settings: Settings) -> None:
         return JSONResponse(
             status_code=exc.status_code,
             content=_error_body(exc.code, exc.message, exc.details),
+        )
+
+    @app.exception_handler(NotAnAdministrator)
+    @app.exception_handler(AdministratorMayNotAct)
+    @app.exception_handler(MissingPrivilege)
+    async def handle_admin_authorization_error(_: Request, exc: Exception) -> JSONResponse:
+        return JSONResponse(
+            status_code=403,
+            content=_error_body("permission_denied", str(exc)),
+        )
+
+    @app.exception_handler(MfaNotSatisfied)
+    async def handle_mfa_not_satisfied(_: Request, exc: MfaNotSatisfied) -> JSONResponse:
+        return JSONResponse(
+            status_code=401,
+            content=_error_body("authentication_required", str(exc)),
         )
 
     @app.exception_handler(RequestValidationError)

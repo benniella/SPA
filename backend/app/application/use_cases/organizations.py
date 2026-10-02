@@ -13,12 +13,14 @@ async def create_organization(
     *,
     name: str,
     slug: str,
+    owner_id: UserId,
 ) -> Organization:
-    """Create a new workspace.
+    """Create a new workspace owned by the caller.
 
     The slug is validated as a value object here rather than in the route
     handler, so every caller — HTTP today, an admin CLI tomorrow — enforces the
-    same rule.
+    same rule. The creator is made its owner in the same transaction: a workspace
+    nobody belongs to would be unreachable through every scoped endpoint.
     """
     organization = Organization(name=name, slug=Slug(slug))
 
@@ -30,12 +32,30 @@ async def create_organization(
                 details={"slug": organization.slug.value},
             )
         await uow.organizations.add(organization)
+        await uow.organizations.add_membership(
+            OrganizationMembership(
+                organization_id=organization.id,
+                user_id=owner_id,
+                role=MembershipRole(MembershipRole.OWNER),
+            )
+        )
         await uow.commit()
 
     return organization
 
 
-async def get_organization(uow: UnitOfWork, *, organization_id: OrganizationId) -> Organization:
+async def get_organization(
+    uow: UnitOfWork,
+    *,
+    organization_id: OrganizationId,
+    user_id: UserId,
+) -> Organization:
+    """Read a workspace the caller belongs to.
+
+    A workspace the caller has no membership in is reported as absent rather than
+    forbidden, so the endpoint cannot be used to discover which ids exist.
+    """
+    await require_organization_member(uow, organization_id=organization_id, user_id=user_id)
     async with uow:
         organization = await uow.organizations.get(organization_id)
         if organization is None:
@@ -46,11 +66,20 @@ async def get_organization(uow: UnitOfWork, *, organization_id: OrganizationId) 
 async def list_organizations(
     uow: UnitOfWork,
     *,
+    user_id: UserId,
     limit: int = 50,
     offset: int = 0,
 ) -> list[Organization]:
+    """Every workspace the caller belongs to, and no others."""
     async with uow:
-        return await uow.organizations.list(limit=limit, offset=offset)
+        memberships = await uow.organizations.list_for_user(user_id)
+        organizations: list[Organization] = []
+        for membership in memberships:
+            organization = await uow.organizations.get(membership.organization_id)
+            if organization is not None:
+                organizations.append(organization)
+    organizations.sort(key=lambda item: item.created_at, reverse=True)
+    return organizations[offset : offset + limit]
 
 
 # Roles permitted to mutate an organization's data. 'viewer' is deliberately

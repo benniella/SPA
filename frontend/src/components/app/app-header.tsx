@@ -12,7 +12,7 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { APP_NAV_ITEMS, APP_SECONDARY_ITEMS } from "@/data/app-navigation";
 import { useSession } from "@/features/auth/session";
-import type { Organization } from "@/types/api";
+import type { AuthenticatedUserOrganization } from "@/types/api";
 
 /** The label for the current route, derived from the navigation list so the
  * header cannot disagree with the sidebar. */
@@ -24,8 +24,7 @@ function usePageLabel(): string {
 }
 
 export function AppHeader() {
-  const { organization, organizations, selectWorkspace, signOut, refreshOrganizations } =
-    useSession();
+  const { organization, organizations, selectWorkspace, signOut, refresh } = useSession();
   const pageLabel = usePageLabel();
 
   return (
@@ -47,7 +46,7 @@ export function AppHeader() {
           organizationName={organization?.name ?? null}
           organizations={organizations}
           onSelect={selectWorkspace}
-          onRefresh={refreshOrganizations}
+          onRefresh={refresh}
         />
 
         <AccountMenu onSignOut={signOut} />
@@ -85,8 +84,8 @@ function WorkspaceMenu({
   onRefresh,
 }: {
   organizationName: string | null;
-  organizations: readonly Organization[];
-  onSelect: (organization: Organization) => void;
+  organizations: readonly AuthenticatedUserOrganization[];
+  onSelect: (organization: AuthenticatedUserOrganization) => void;
   onRefresh: () => void;
 }) {
   const [open, setOpen] = useState(false);

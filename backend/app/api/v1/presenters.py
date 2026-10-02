@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.application.use_cases.admin_administrators import AdministratorSummary
+from app.application.use_cases.reports import ReportExport
 from app.application.use_cases.visualizations import VisualizationData
 from app.domain.analysis.entities import AnalysisRun
 from app.domain.jobs.entities import ProcessingJob
@@ -8,6 +10,7 @@ from app.domain.metrics.types import AnalysisMetrics
 from app.domain.organizations.entities import Organization
 from app.domain.players.entities import Player
 from app.domain.reports.entities import Report
+from app.domain.security.entities import SecurityEvent
 from app.domain.teams.entities import Team
 from app.domain.users.entities import User
 from app.domain.videos.entities import Video
@@ -121,6 +124,8 @@ def report_payload(report: Report) -> dict[str, object]:
         "created_by_id": report.created_by_id,
         "title": report.title,
         "status": str(report.status),
+        "definition_version": report.definition_version,
+        "analysis_run_id": report.scope.analysis_run_id,
         "match_id": report.scope.match_id,
         "team_id": report.scope.team_id,
         "storage_key": report.storage_key,
@@ -128,6 +133,30 @@ def report_payload(report: Report) -> dict[str, object]:
         "generated_at": report.generated_at,
         "created_at": report.created_at,
         "updated_at": report.updated_at,
+    }
+
+
+def report_detail_payload(report: Report) -> dict[str, object]:
+    """A report plus its stored snapshot body.
+
+    'content' is only populated once the report is ready: an in-flight report has
+    no body, and returning the empty placeholder as if it were the report would
+    misrepresent it.
+    """
+    return {
+        **report_payload(report),
+        "content": report.content if report.is_ready_snapshot() else None,
+    }
+
+
+def export_payload(export: ReportExport) -> dict[str, object]:
+    """The stored export's metadata. The storage key itself is never returned:
+    a client reaches the object through the report's own authorized endpoint."""
+    return {
+        "report_id": export.report_id,
+        "filename": export.filename,
+        "content_type": export.content_type,
+        "download_url": f"/api/v1/reports/{export.report_id}/export",
     }
 
 
@@ -161,7 +190,7 @@ def analysis_metrics_payload(metrics: AnalysisMetrics) -> dict[str, object]:
 
 
 def analysis_run_payload(run: AnalysisRun) -> dict[str, object]:
-        return {
+    return {
         "id": run.id,
         "organization_id": run.organization_id,
         "video_id": run.video_id,
@@ -231,4 +260,27 @@ def run_visualization_payload(data: VisualizationData) -> dict[str, object]:
             ],
         },
         "metrics": analysis_metrics_payload(data.metrics),
+    }
+def administrator_payload(summary: AdministratorSummary) -> dict[str, object]:
+    admin = summary.admin
+    return {
+        "id": admin.id,
+        "user_id": admin.user_id,
+        "email": summary.email,
+        "status": str(admin.status),
+        "roles": list(summary.roles),
+        "privileges": list(summary.privileges),
+        "mfa_enrolled": admin.is_mfa_enrolled,
+        "created_at": admin.created_at,
+        "updated_at": admin.updated_at,
+    }
+
+
+def audit_payload(event: SecurityEvent) -> dict[str, object]:
+    return {
+        "id": event.id,
+        "actor_id": event.user_id,
+        "event_type": str(event.event_type),
+        "metadata": dict(event.metadata),
+        "created_at": event.created_at,
     }

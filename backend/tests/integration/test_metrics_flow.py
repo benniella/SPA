@@ -19,9 +19,32 @@ pytestmark = [pytest.mark.integration, pytest.mark.usefixtures("clean_database")
 
 
 async def make_organization(client: AsyncClient, slug: str) -> str:
+    """Create a workspace as an authenticated owner.
+
+    Organization routes require an authenticated member, so the test creates the
+    identity that will own the workspace and then acts as it.
+    """
+    from app.core.config import get_settings
+    from app.infrastructure.database.engine import get_session_factory
+    from app.infrastructure.database.models import UserModel
+
+    user_id = uuid.uuid4()
+    session_factory = get_session_factory(get_settings())
+    async with session_factory() as session:
+        session.add(
+            UserModel(
+                id=user_id,
+                email=f"{user_id}@example.com",
+                display_name="Owner",
+                is_active=True,
+            )
+        )
+        await session.commit()
+
     response = await client.post(
         "/api/v1/organizations",
         json={"name": slug.replace("-", " ").title(), "slug": slug},
+        headers={"x-spa-user-id": str(user_id)},
     )
     assert response.status_code == 201, response.text
     return response.json()["id"]

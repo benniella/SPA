@@ -11,13 +11,22 @@ from types import TracebackType
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.infrastructure.database.repositories import (
+    SqlAdminInvitationRepository,
+    SqlAdminMfaRepository,
+    SqlAdminPrivilegeRepository,
+    SqlAdminRepository,
+    SqlAdminRoleRepository,
     SqlAnalysisRunRepository,
     SqlMatchRepository,
     SqlOrganizationRepository,
+    SqlOtpChallengeRepository,
     SqlPerformanceMetricRepository,
     SqlPlayerRepository,
     SqlProcessingJobRepository,
     SqlReportRepository,
+    SqlSecurityChallengeRepository,
+    SqlSecurityEventRepository,
+    SqlSessionRepository,
     SqlTeamRepository,
     SqlTrackingDatasetRepository,
     SqlTrackMetricRepository,
@@ -38,6 +47,15 @@ class SqlAlchemyUnitOfWork:
 
     organizations: SqlOrganizationRepository
     users: SqlUserRepository
+    admins: SqlAdminRepository
+    admin_roles: SqlAdminRoleRepository
+    admin_privileges: SqlAdminPrivilegeRepository
+    admin_invitations: SqlAdminInvitationRepository
+    admin_mfa: SqlAdminMfaRepository
+    sessions: SqlSessionRepository
+    challenges: SqlSecurityChallengeRepository
+    otp_challenges: SqlOtpChallengeRepository
+    security_events: SqlSecurityEventRepository
     teams: SqlTeamRepository
     players: SqlPlayerRepository
     matches: SqlMatchRepository
@@ -64,6 +82,15 @@ class SqlAlchemyUnitOfWork:
         self._session = session
         self.organizations = SqlOrganizationRepository(session)
         self.users = SqlUserRepository(session)
+        self.admins = SqlAdminRepository(session)
+        self.admin_roles = SqlAdminRoleRepository(session)
+        self.admin_privileges = SqlAdminPrivilegeRepository(session)
+        self.admin_invitations = SqlAdminInvitationRepository(session)
+        self.admin_mfa = SqlAdminMfaRepository(session)
+        self.sessions = SqlSessionRepository(session)
+        self.challenges = SqlSecurityChallengeRepository(session)
+        self.otp_challenges = SqlOtpChallengeRepository(session)
+        self.security_events = SqlSecurityEventRepository(session)
         self.teams = SqlTeamRepository(session)
         self.players = SqlPlayerRepository(session)
         self.matches = SqlMatchRepository(session)

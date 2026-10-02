@@ -4,14 +4,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SessionProvider } from "@/features/auth/session";
 import { VideoLibrary } from "@/features/videos";
-import type { Organization, Video } from "@/types/api";
-
+import type { AuthenticatedUser, Organization, Video } from "@/types/api";
 const ORGANIZATION: Organization = {
   id: "org-1",
   name: "Riverside FC",
   slug: "riverside-fc",
   created_at: "2025-01-01T00:00:00Z",
   updated_at: "2025-01-01T00:00:00Z",
+};
+const ACCOUNT: AuthenticatedUser = {
+  id: "user-1",
+  email: "coach@club.example",
+  display_name: "Coach",
+  account_status: "active",
+  email_verified: true,
+  phone_verified: false,
+  phone_number: null,
+  created_at: "2025-01-01T00:00:00Z",
+  last_login_at: null,
+  organizations: [
+    { id: ORGANIZATION.id, name: ORGANIZATION.name, slug: ORGANIZATION.slug, role: "owner" },
+  ],
 };
 
 const VIDEO: Video = {
@@ -40,7 +53,9 @@ interface Recorded {
 
 function stubApi(routes: Record<string, unknown>) {
   const calls: Recorded[] = [];
-
+  /* The session provider resolves '/auth/me' on mount, so every page under test
+     needs that route whether or not the test is about authentication. */
+  const allRoutes: Record<string, unknown> = { "GET /auth/me": ACCOUNT, ...routes };
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input));
     const method = init?.method ?? "GET";
@@ -49,8 +64,7 @@ function stubApi(routes: Record<string, unknown>) {
       path: url.pathname,
       body: init?.body ? JSON.parse(String(init.body)) : undefined,
     });
-
-    for (const [key, payload] of Object.entries(routes)) {
+    for (const [key, payload] of Object.entries(allRoutes)) {
       const [routeMethod, routePath] = key.split(" ");
       if (url.pathname === `/api/v1${routePath}` && method === routeMethod) {
         return {
@@ -113,7 +127,7 @@ function stubUpload({ fail = false } = {}) {
 }
 
 function withSession(children: React.ReactNode) {
-  window.localStorage.setItem("spa.dev.workspace", ORGANIZATION.id);
+  window.localStorage.setItem("spa.workspace", ORGANIZATION.id);
   return render(<SessionProvider>{children}</SessionProvider>);
 }
 

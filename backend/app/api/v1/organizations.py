@@ -4,7 +4,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, status
 
-from app.api.dependencies import UnitOfWorkDep
+from app.api.dependencies import CurrentUserDep, UnitOfWorkDep
 from app.api.v1.params import Pagination, pagination
 from app.api.v1.presenters import organization_payload
 from app.application.use_cases import organizations as use_cases
@@ -28,12 +28,14 @@ router = APIRouter()
 )
 async def create_organization(
     payload: OrganizationCreate,
+    user: CurrentUserDep,
     uow: UnitOfWorkDep,
 ) -> OrganizationRead:
     organization = await use_cases.create_organization(
         uow,
         name=payload.name,
         slug=payload.slug,
+        owner_id=user.id,
     )
     return OrganizationRead.model_validate(organization_payload(organization))
 
@@ -41,14 +43,16 @@ async def create_organization(
 @router.get(
     "",
     response_model=OrganizationList,
-    summary="List organizations",
+    summary="List the caller's organizations",
 )
 async def list_organizations(
+    user: CurrentUserDep,
     uow: UnitOfWorkDep,
     page: Pagination = Depends(pagination),
 ) -> OrganizationList:
     organizations = await use_cases.list_organizations(
         uow,
+        user_id=user.id,
         limit=page.limit,
         offset=page.offset,
     )
@@ -68,10 +72,12 @@ async def list_organizations(
 )
 async def get_organization(
     organization_id: uuid.UUID,
+    user: CurrentUserDep,
     uow: UnitOfWorkDep,
 ) -> OrganizationRead:
     organization = await use_cases.get_organization(
         uow,
         organization_id=OrganizationId(organization_id),
+        user_id=user.id,
     )
     return OrganizationRead.model_validate(organization_payload(organization))

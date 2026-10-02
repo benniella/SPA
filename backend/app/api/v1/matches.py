@@ -4,10 +4,11 @@ import uuid
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.api.dependencies import UnitOfWorkDep
+from app.api.dependencies import CurrentUserDep, UnitOfWorkDep
 from app.api.v1.params import Pagination, pagination
 from app.api.v1.presenters import match_payload
 from app.application.use_cases import matches as use_cases
+from app.application.use_cases.organizations import require_organization_member
 from app.domain.shared import MatchId, OrganizationId, TeamId
 from app.schemas.common import ErrorResponse
 from app.schemas.matches import MatchCreate, MatchList, MatchRead
@@ -22,7 +23,14 @@ router = APIRouter()
     summary="Create a match",
     responses={404: {"model": ErrorResponse, "description": "Organization not found."}},
 )
-async def create_match(payload: MatchCreate, uow: UnitOfWorkDep) -> MatchRead:
+async def create_match(
+    payload: MatchCreate, user: CurrentUserDep, uow: UnitOfWorkDep
+) -> MatchRead:
+    await require_organization_member(
+        uow,
+        organization_id=OrganizationId(payload.organization_id),
+        user_id=user.id,
+    )
     match = await use_cases.create_match(
         uow,
         organization_id=OrganizationId(payload.organization_id),
@@ -40,10 +48,14 @@ async def create_match(payload: MatchCreate, uow: UnitOfWorkDep) -> MatchRead:
 
 @router.get("", response_model=MatchList, summary="List matches in an organization")
 async def list_matches(
+    user: CurrentUserDep,
     uow: UnitOfWorkDep,
     organization_id: uuid.UUID = Query(description="Owning organization."),
     page: Pagination = Depends(pagination),
 ) -> MatchList:
+    await require_organization_member(
+        uow, organization_id=OrganizationId(organization_id), user_id=user.id
+    )
     matches = await use_cases.list_matches(
         uow,
         organization_id=OrganizationId(organization_id),
@@ -64,9 +76,13 @@ async def list_matches(
 )
 async def get_match(
     match_id: uuid.UUID,
+    user: CurrentUserDep,
     uow: UnitOfWorkDep,
     organization_id: uuid.UUID = Query(description="Owning organization."),
 ) -> MatchRead:
+    await require_organization_member(
+        uow, organization_id=OrganizationId(organization_id), user_id=user.id
+    )
     match = await use_cases.get_match(
         uow,
         organization_id=OrganizationId(organization_id),

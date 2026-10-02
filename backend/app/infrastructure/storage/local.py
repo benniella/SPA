@@ -78,6 +78,11 @@ class LocalVideoStorage:
     async def open(self, key: str) -> bytes:
         return self._resolve(key).read_bytes()
 
+    async def write_bytes(self, key: str, payload: bytes) -> None:
+        path = self._resolve(key)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(payload)
+
     def open_for_write(self, key: str) -> Path:
         """Return a path to write an uploaded object to."""
         path = self._resolve(key)

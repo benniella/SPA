@@ -62,3 +62,12 @@ class VideoStorage(Protocol):
     async def open(self, key: str) -> bytes:
         """Read an object fully. Intended for small artefacts, not match video."""
         ...
+
+    async def write_bytes(self, key: str, payload: bytes) -> None:
+        """Write a small object the application produced, not an uploaded one.
+
+        Report exports are composed server-side and are kilobytes, so they take
+        this path rather than the presigned upload one. The caller owns the key's
+        organization namespace; this method authorizes nothing.
+        """
+        ...

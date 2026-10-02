@@ -10,6 +10,7 @@ import { AnalysisMetricsPanel } from "@/features/analysis/components/analysis-me
 import { AnalysisVisualizationPanel } from "@/features/analysis/components/analysis-visualization-panel";
 import { RunStatus } from "@/features/analysis/components/analysis-overview";
 import { useOrganizationId } from "@/features/auth/session";
+import { GenerateReportAction } from "@/features/reports";
 import { useApiMutation } from "@/hooks/use-api-mutation";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { formatDateTime } from "@/lib/format";
@@ -95,6 +96,18 @@ export function AnalysisRunDetail({ runId }: { runId: string }) {
         </div>
 
         <div className="stack stack-4">
+          {hasUsableResults(record.status) ? (
+            <GenerateReportAction runId={runId} />
+          ) : (
+            <div className="state-block" data-tone="placeholder">
+              <h3 className="state-title">No report yet</h3>
+              <p className="state-text">
+                A report is a snapshot of this run&rsquo;s metrics and observations, so it can be
+                generated once the analysis has produced them.
+              </p>
+            </div>
+          )}
+
           {/* Cancelling only records intent — the worker owns execution, and there is
               no worker. Offering it on a finished run would 409; offering it on an
               in-flight run would set a flag nothing reads. Neither is offered. */}

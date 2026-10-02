@@ -516,3 +516,60 @@ export const SECURITY = {
   },
   sections: [] as readonly ContentSection[],
 } as const;
+
+/* Cookies */
+
+export const COOKIES = {
+  eyebrow: "Cookies",
+  heading: "Cookies and browser storage",
+  effectiveDate: "Not yet in force",
+  lede: "This page describes how SPA uses cookies and browser storage, and where the preferences that apply to this device are managed.",
+  notice: {
+    title: "Consent handling is not yet built",
+    body: "No consent banner or cookie preference store exists yet. This page states the intended position so the gap is visible rather than hidden, and no non-essential cookie is set by this deployment.",
+  },
+  sections: [
+    {
+      id: "what",
+      heading: "What cookies are used",
+      paragraphs: [
+        "A cookie is a small piece of data a site stores in the browser. SPA uses them for two purposes only: keeping a signed-in session alive, and remembering display preferences such as the light or dark theme.",
+      ],
+      items: [
+        "Session cookie — identifies the signed-in session and is required for the application to work.",
+        "Preference storage — remembers a display choice such as the theme, so it does not reset on every visit.",
+      ],
+    },
+    {
+      id: "essential",
+      heading: "Essential cookies",
+      paragraphs: [
+        "The session cookie cannot be turned off. Without it the application cannot tell one request from the next, so signing in would not persist and the workspace could not be loaded.",
+        "Essential cookies are not used for advertising, are not shared with advertising networks, and are not used to build a profile of a visitor.",
+      ],
+    },
+    {
+      id: "analytics",
+      heading: "Analytics and advertising",
+      paragraphs: [
+        "SPA sets no advertising cookies and runs no third-party analytics that profile visitors across sites. If analytics are introduced, they will be opt-in and this page will name the provider before any such cookie is set.",
+      ],
+      placeholder: true,
+    },
+    {
+      id: "manage",
+      heading: "Managing preferences",
+      paragraphs: [
+        "Use the cookie preferences card on this page to review or change the optional analytics preference. Your choice is stored in this browser and can be changed at any time. If browser storage is unavailable, the choice applies for the current visit only.",
+        "The session cookie is essential and cannot be disabled here. Clearing this site's browser storage removes the saved consent choice and theme preference; clearing cookies signs the browser out.",
+      ],
+    },
+    {
+      id: "changes",
+      heading: "Changes to this statement",
+      paragraphs: [
+        "Consent records include the preference, policy version, and time of the last choice. If the purposes or categories change, SPA will request consent again before enabling optional processing.",
+      ],
+    },
+  ] as readonly ContentSection[],
+} as const;

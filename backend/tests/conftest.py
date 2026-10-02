@@ -41,7 +41,7 @@ from httpx import ASGITransport, AsyncClient
 # developer is using, even if backend/.env points at it.
 TEST_DATABASE_URL = os.environ.get(
     "SPA_TEST_DATABASE_URL",
-    "postgresql+psycopg://spa:spa@localhost:5432/spa_test",
+    "postgresql+psycopg://spa:spa@localhost:5442/spa_test",
 )
 os.environ["SPA_DATABASE_URL"] = TEST_DATABASE_URL
 os.environ.setdefault("SPA_ENVIRONMENT", "local")

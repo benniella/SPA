@@ -9,8 +9,17 @@ microseconds.
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime
+from typing import cast
 
+from app.domain.admin.entities import (
+    AdminId,
+    AdminIdentity,
+    AdminInvitation,
+    AdminMfaChallenge,
+    AdminPrivilege,
+    AdminRole,
+)
 from app.domain.analysis.entities import AnalysisRun, AnalysisRunStatus
 from app.domain.analysis.metrics import PerformanceMetric
 from app.domain.jobs.entities import JobStatus, ProcessingJob
@@ -36,6 +45,12 @@ from app.domain.teams.entities import Team
 from app.domain.tracking.entities import TrackedObservation, TrackingDataset, TrackRecord
 from app.domain.users.entities import User
 from app.domain.videos.entities import Video
+from tests.unit.application.security_fakes import (
+    FakeChallengeRepository,
+    FakeOtpChallengeRepository,
+    FakeSecurityEventRepository,
+    FakeSessionRepository,
+)
 
 
 def _key(value: object) -> uuid.UUID:
@@ -91,6 +106,9 @@ class FakeOrganizationRepository(_FakeRepository):
                 return item
         return None
 
+    async def add_membership(self, membership: OrganizationMembership) -> None:
+        self.memberships.append(membership)
+
     async def list(self, *, limit: int = 50, offset: int = 0) -> list[Organization]:
         return [item for item in self.items if isinstance(item, Organization)][  # type: ignore[misc]
             offset : offset + limit
@@ -103,6 +121,9 @@ class FakeUserRepository(_FakeRepository):
             if isinstance(item, User) and item.email.value == email.strip().lower():
                 return item
         return None
+
+    async def update(self, user: User) -> None:
+        self._items[_key(user.id)] = user
 
     async def list(self, *, limit: int = 50, offset: int = 0) -> list[User]:
         return [item for item in self.items if isinstance(item, User)][offset : offset + limit]  # type: ignore[misc]
@@ -400,6 +421,27 @@ class FakeReportRepository(_FakeRepository):
     async def get(self, report_id: ReportId) -> Report | None:
         return await super().get(report_id)  # type: ignore[return-value]
 
+    async def update(self, report: Report) -> None:
+        for index, item in enumerate(self.items):
+            if isinstance(item, Report) and item.id == report.id:
+                self.items[index] = report
+                return
+        raise LookupError(f"Report {report.id} is not persisted.")
+
+    async def find_for_run(
+        self,
+        organization_id: OrganizationId,
+        run_id: AnalysisRunId,
+    ) -> Report | None:
+        for item in self.items:
+            if (
+                isinstance(item, Report)
+                and item.organization_id == organization_id
+                and item.scope.analysis_run_ids == (run_id,)
+            ):
+                return item
+        return None
+
     async def list_for_organization(
         self,
         organization_id: OrganizationId,
@@ -421,6 +463,15 @@ class UnitOfWorkStub:
     def __init__(self) -> None:
         self.organizations = FakeOrganizationRepository()
         self.users = FakeUserRepository()
+        self.admins = FakeAdminRepository()
+        self.admin_roles = FakeAdminRoleRepository()
+        self.admin_privileges = FakeAdminPrivilegeRepository()
+        self.admin_invitations = FakeAdminInvitationRepository()
+        self.admin_mfa = FakeAdminMfaRepository()
+        self.sessions = FakeSessionRepository()
+        self.challenges = FakeChallengeRepository()
+        self.otp_challenges = FakeOtpChallengeRepository()
+        self.security_events = FakeSecurityEventRepository()
         self.teams = FakeTeamRepository()
         self.players = FakePlayerRepository()
         self.matches = FakeMatchRepository()
@@ -446,3 +497,199 @@ class UnitOfWorkStub:
 
     async def rollback(self) -> None:
         self.rollbacks += 1
+
+
+class FakeAdminRepository(_FakeRepository):
+    async def update(self, admin: AdminIdentity) -> None:
+        self._items[_key(admin.id)] = admin
+
+    async def get_by_user(self, user_id: UserId) -> AdminIdentity | None:
+        for item in self.items:
+            if isinstance(item, AdminIdentity) and item.user_id == user_id:
+                return item
+        return None
+
+    async def list(self, *, limit: int = 50, offset: int = 0) -> list[AdminIdentity]:
+        admins = [item for item in self.items if isinstance(item, AdminIdentity)]
+        return admins[offset : offset + limit]
+
+
+class FakeAdminRoleRepository:
+    def __init__(self) -> None:
+        self._assignments: dict[uuid.UUID, list[AdminRole]] = {}
+
+    async def get_by_name(self, name: str) -> AdminRole | None:
+        return AdminRole(name) if name in AdminRole.ALLOWED else None
+
+    async def id_for_role(self, role: AdminRole) -> object | None:
+        if str(role) not in AdminRole.ALLOWED:
+            return None
+        return uuid.uuid5(uuid.NAMESPACE_DNS, f"admin-role:{role}")
+
+    async def list(self) -> list[AdminRole]:
+        return [AdminRole(name) for name in sorted(AdminRole.ALLOWED)]
+
+    async def roles_for_admin(self, admin_id: object) -> list[AdminRole]:
+        return list(self._assignments.get(_key(admin_id), []))
+
+    async def assign(
+        self,
+        admin_id: object,
+        role: AdminRole,
+        *,
+        assigned_by: UserId | None,
+    ) -> None:
+        held = self._assignments.setdefault(_key(admin_id), [])
+        if role not in held:
+            held.append(role)
+
+    async def unassign(self, admin_id: object, role: AdminRole) -> None:
+        held = self._assignments.setdefault(_key(admin_id), [])
+        if role in held:
+            held.remove(role)
+
+
+class FakeAdminPrivilegeRepository:
+    def __init__(self) -> None:
+        self._grants: dict[uuid.UUID, list[AdminPrivilege]] = {}
+
+    async def list(self) -> list[AdminPrivilege]:
+        return [AdminPrivilege(name) for name in sorted(AdminPrivilege.ALLOWED)]
+
+    async def privileges_for_admin(self, admin_id: object) -> list[AdminPrivilege]:
+        return list(self._grants.get(_key(admin_id), []))
+
+    async def grant(
+        self,
+        admin_id: object,
+        privilege: AdminPrivilege,
+        *,
+        granted_by: UserId | None,
+    ) -> None:
+        granted = self._grants.setdefault(_key(admin_id), [])
+        if privilege not in granted:
+            granted.append(privilege)
+
+    async def revoke(self, admin_id: object, privilege: AdminPrivilege) -> None:
+        granted = self._grants.setdefault(_key(admin_id), [])
+        if privilege in granted:
+            granted.remove(privilege)
+
+
+class FakeAdminInvitationRepository(_FakeRepository):
+    async def add(self, invitation: AdminInvitation, *, role_id: object) -> None:
+        self._role_ids[_key(invitation.id)] = role_id
+        self._items[_key(invitation.id)] = invitation
+        self.added.append(invitation)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._role_ids: dict[uuid.UUID, object] = {}
+
+    async def get(self, invitation_id: object) -> tuple[AdminInvitation, object] | None:
+        invitation = await super().get(invitation_id)
+        if isinstance(invitation, AdminInvitation):
+            return invitation, self._role_ids.get(_key(invitation.id))
+        return None
+
+    async def get_by_token_hash(self, token_hash: str) -> tuple[AdminInvitation, object] | None:
+        for item in self.items:
+            if isinstance(item, AdminInvitation) and item.token_hash == token_hash:
+                return item, self._role_ids.get(_key(item.id))
+        return None
+
+    async def latest_for_email(self, email: str) -> AdminInvitation | None:
+        candidates = [
+            item for item in self.items if isinstance(item, AdminInvitation) and item.email == email
+        ]
+        return max(candidates, key=lambda invitation: invitation.created_at, default=None)
+
+    async def list(self, *, limit: int = 50, offset: int = 0) -> list[AdminInvitation]:
+        invitations = [item for item in self.items if isinstance(item, AdminInvitation)]
+        return invitations[offset : offset + limit]
+
+    async def update(self, invitation: AdminInvitation) -> None:
+        self._items[_key(invitation.id)] = invitation
+
+    async def invalidate_for_email(self, email: str) -> int:
+        count = 0
+        for item in self.items:
+            if (
+                isinstance(item, AdminInvitation)
+                and item.email == email
+                and not item.is_revoked
+                and not item.is_accepted
+            ):
+                item.revoke()
+                count += 1
+        return count
+
+
+class FakeAdminMfaRepository:
+    def __init__(self) -> None:
+        self._secrets: dict[uuid.UUID, str] = {}
+        self._confirmed: set[uuid.UUID] = set()
+        self._recovery_codes: dict[uuid.UUID, dict[str, bool]] = {}
+        self._challenges: dict[uuid.UUID, AdminMfaChallenge] = {}
+
+    async def set_secret(self, admin_id: object, *, secret_encrypted: str) -> None:
+        self._secrets[_key(admin_id)] = secret_encrypted
+
+    async def get_secret(self, admin_id: object) -> str | None:
+        return self._secrets.get(_key(admin_id))
+
+    async def confirm(self, admin_id: object) -> None:
+        self._confirmed.add(_key(admin_id))
+
+    async def is_confirmed(self, admin_id: object) -> bool:
+        return _key(admin_id) in self._confirmed
+
+    async def replace_recovery_codes(self, admin_id: object, *, code_hashes: list[str]) -> None:
+        self._recovery_codes[_key(admin_id)] = dict.fromkeys(code_hashes, False)
+
+    async def consume_recovery_code(self, admin_id: object, *, code_hash: str) -> bool:
+        codes = self._recovery_codes.setdefault(_key(admin_id), {})
+        if codes.get(code_hash) is False:
+            codes[code_hash] = True
+            return True
+        return False
+
+    async def clear(self, admin_id: object) -> None:
+        admin_uuid = _key(admin_id)
+        self._secrets.pop(admin_uuid, None)
+        self._confirmed.discard(admin_uuid)
+        self._recovery_codes.pop(admin_uuid, None)
+
+    async def start_challenge(
+        self,
+        admin_id: object,
+        *,
+        session_id: object,
+        expires_at: object,
+        max_attempts: int,
+    ) -> None:
+        challenge = AdminMfaChallenge(
+            admin_id=AdminId(_key(admin_id)),
+            session_id=session_id,
+            expires_at=cast(datetime, expires_at),
+            max_attempts=max_attempts,
+        )
+        self._challenges[_key(admin_id)] = challenge
+
+    async def get_challenge(self, admin_id: object, session_id: object) -> AdminMfaChallenge | None:
+        challenge = self._challenges.get(_key(admin_id))
+        if challenge is None or str(challenge.session_id) != str(session_id):
+            return None
+        if challenge.is_satisfied or challenge.is_expired() or challenge.attempts_exhausted:
+            return None
+        return challenge
+
+    async def record_challenge_attempt(self, challenge_id: object, *, attempts: int) -> None:
+        for challenge in self._challenges.values():
+            if challenge.id == challenge_id:
+                challenge.attempts = attempts
+
+    async def satisfy_challenge(self, challenge_id: object) -> None:
+        for challenge in self._challenges.values():
+            if challenge.id == challenge_id:
+                challenge.satisfy()

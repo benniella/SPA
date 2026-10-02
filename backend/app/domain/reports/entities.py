@@ -72,6 +72,11 @@ class ReportScope:
         if self.match_id is None and self.team_id is None and not self.analysis_run_ids:
             raise ValueError("A report scope must reference a match, a team or analysis runs.")
 
+    @property
+    def analysis_run_id(self) -> AnalysisRunId | None:
+        """The single run a run-scoped report covers, or None for other scopes."""
+        return self.analysis_run_ids[0] if len(self.analysis_run_ids) == 1 else None
+
 
 @dataclass(slots=True)
 class Report:
@@ -90,6 +95,7 @@ class Report:
     created_by_id: UserId | None = None
     status: ReportStatus = field(default_factory=lambda: ReportStatus(ReportStatus.DRAFT))
     content: dict[str, object] = field(default_factory=dict)
+    definition_version: str = "v1"
     storage_key: str | None = None
     error_message: str | None = None
     generated_at: datetime | None = None
@@ -99,6 +105,20 @@ class Report:
     def __post_init__(self) -> None:
         if not self.title.strip():
             raise ValueError("Report title must not be empty.")
+        if not self.definition_version.strip():
+            raise ValueError("A report must declare its definition version.")
+
+    @property
+    def analysis_run_id(self) -> AnalysisRunId | None:
+        return self.scope.analysis_run_id
+
+    def is_ready_snapshot(self) -> bool:
+        """Whether this report is a finished snapshot rather than still in flight.
+
+        The distinction the read path acts on: a ready report's content is frozen
+        and must not be re-derived, while an unfinished one has no content yet.
+        """
+        return self.status.value == ReportStatus.READY and self.generated_at is not None
 
     def mark_generating(self) -> None:
         if self.status.value not in {ReportStatus.DRAFT, ReportStatus.FAILED}:

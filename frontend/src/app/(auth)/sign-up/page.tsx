@@ -4,45 +4,32 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { BrandMark } from "@/components/brand/brand-mark";
-import { Banner } from "@/components/ui/banner";
-import { Button, ButtonLink } from "@/components/ui/button";
-import { apiErrorFor, Field, FormError } from "@/components/ui/form";
-import { Container } from "@/components/ui/section";
+import { AuthPageShell } from "@/components/auth/auth-shell";
+import { PasswordField, PasswordStrengthMeter } from "@/components/auth/password-field";
+import { Button } from "@/components/ui/button";
+import { Field, FormError, apiErrorFor } from "@/components/ui/form";
+import { EmailField } from "@/components/ui/email-field";
 import { slugify } from "@/features/teams";
 import { useApiMutation } from "@/hooks/use-api-mutation";
-import { createOrganization } from "@/services/organizations";
-import { createUser } from "@/services/users";
+import { isValidEmail, phoneValidationMessage } from "@/lib/validators";
+import { register } from "@/services/auth";
 
 export default function SignUpPage() {
   return (
-    <Container width="narrow">
-      <div className="stack stack-6" style={{ paddingBlock: "var(--space-9)" }}>
-        <div className="stack stack-4">
-          <BrandMark variant="full" />
-          <h1 className="heading-page">Create an account</h1>
-          <p className="text-body">
-            Register your identity, then name the workspace your data belongs to.
-          </p>
-        </div>
+    <AuthPageShell
+      title="Create an account"
+      description="Register your identity and name the workspace your data belongs to."
+      menu="signUp"
+    >
+      <SignUpForm />
 
-        <Banner tone="warning" title="Sign-up is not available yet">
-          <p>
-            Accounts, credentials and permissions are still being built. Until they arrive, this
-            creates the identity record only — no password is stored and nothing is signed in.
-          </p>
-        </Banner>
-
-        <SignUpForm />
-
-        <p className="text-caption">
-          Already have a workspace?{" "}
-          <Link className="app-row-link" href="/sign-in">
-            Sign in
-          </Link>
-        </p>
-      </div>
-    </Container>
+      <p className="text-caption">
+        Already have an account?{" "}
+        <Link className="app-row-link" href="/sign-in">
+          Sign in
+        </Link>
+      </p>
+    </AuthPageShell>
   );
 }
 
@@ -50,36 +37,51 @@ function SignUpForm() {
   const router = useRouter();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [organizationName, setOrganizationName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
+  const [emailError, setEmailError] = useState<string | undefined>();
+  const [passwordError, setPasswordError] = useState<string | undefined>();
 
-  const user = useApiMutation(createUser);
-  const organization = useApiMutation(createOrganization);
-  const submitting = user.state.status === "pending" || organization.state.status === "pending";
-  const failure =
-    user.state.status === "error"
-      ? user.state.error
-      : organization.state.status === "error"
-        ? organization.state.error
-        : null;
+  const { state, mutate } = useApiMutation(register);
+  const submitting = state.status === "pending";
+  const failure = state.status === "error" ? state.error : null;
 
   const effectiveSlug = slugTouched ? slug : slugify(organizationName);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const created = await user.mutate({ email: email.trim(), display_name: displayName.trim() });
-    if (!created) return;
+    const trimmedEmail = email.trim();
+    if (trimmedEmail && !isValidEmail(trimmedEmail)) {
+      setEmailError("Enter a valid email address.");
+      return;
+    }
 
-    const createdWorkspace = await organization.mutate({
-      name: organizationName.trim(),
-      slug: effectiveSlug,
+    setEmailError(undefined);
+
+    if (confirmPassword !== password) {
+      setPasswordError("Both passwords must match.");
+      return;
+    }
+
+    setPasswordError(undefined);
+
+    const accepted = await mutate({
+      email: trimmedEmail,
+      password,
+      display_name: displayName.trim(),
+      organization_name: organizationName.trim(),
+      organization_slug: effectiveSlug,
     });
-    if (!createdWorkspace) return;
+    if (!accepted) return;
 
-    // The workspace exists, but no session does: signing in is where one is chosen.
-    router.replace("/sign-in");
+    // Registration deliberately does not sign the account in: the address has to
+    // be confirmed first, and the verification link is what does that.
+    router.replace("/verify-email");
   }
 
   return (
@@ -94,18 +96,51 @@ function SignUpForm() {
         hint="How you will be identified in the workspace."
         value={displayName}
         onChange={(event) => setDisplayName(event.target.value)}
-        error={apiErrorFor(user.state.status === "error" ? user.state.error : null, "display_name")}
+        error={apiErrorFor(failure, "display_name")}
       />
 
-      <Field
+      <EmailField
         id="signup-email"
         label="Email address"
-        type="email"
         required
         autoComplete="email"
         value={email}
-        onChange={(event) => setEmail(event.target.value)}
-        error={apiErrorFor(user.state.status === "error" ? user.state.error : null, "email")}
+        onChange={setEmail}
+        error={emailError ?? apiErrorFor(failure, "email")}
+      />
+
+      <PasswordField
+        id="signup-password"
+        label="Password"
+        required
+        autoComplete="new-password"
+        hint="At least 10 characters, including a letter and a number."
+        value={password}
+        onChange={setPassword}
+        error={apiErrorFor(failure, "password")}
+        strength={<PasswordStrengthMeter value={password} />}
+      />
+
+      <PasswordField
+        id="signup-confirm-password"
+        label="Confirm password"
+        required
+        autoComplete="new-password"
+        value={confirmPassword}
+        onChange={setConfirmPassword}
+        error={passwordError}
+      />
+
+      <Field
+        id="signup-phone"
+        label="Phone number"
+        type="tel"
+        inputMode="tel"
+        autoComplete="tel"
+        hint="Optional. Used for match-day notifications."
+        value={phoneNumber}
+        onChange={(event) => setPhoneNumber(event.target.value)}
+        error={phoneValidationMessage(phoneNumber) ?? apiErrorFor(failure, "phone_number")}
       />
 
       <Field
@@ -115,10 +150,7 @@ function SignUpForm() {
         hint="For example “Riverside FC”."
         value={organizationName}
         onChange={(event) => setOrganizationName(event.target.value)}
-        error={apiErrorFor(
-          organization.state.status === "error" ? organization.state.error : null,
-          "name",
-        )}
+        error={apiErrorFor(failure, "organization_name")}
       />
 
       <Field
@@ -131,10 +163,7 @@ function SignUpForm() {
           setSlugTouched(true);
           setSlug(event.target.value);
         }}
-        error={apiErrorFor(
-          organization.state.status === "error" ? organization.state.error : null,
-          "slug",
-        )}
+        error={apiErrorFor(failure, "organization_slug")}
       />
 
       <div className="form-actions">
@@ -142,20 +171,19 @@ function SignUpForm() {
           type="submit"
           variant="primary"
           size="md"
+          arrow={false}
           disabled={
             submitting ||
             displayName.trim() === "" ||
             email.trim() === "" ||
+            password === "" ||
+            confirmPassword === "" ||
             organizationName.trim() === "" ||
             effectiveSlug === ""
           }
         >
           {submitting ? "Creating…" : "Create account"}
         </Button>
-
-        <ButtonLink href="/" variant="technical" size="md">
-          Cancel
-        </ButtonLink>
       </div>
     </form>
   );

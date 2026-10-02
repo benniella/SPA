@@ -18,7 +18,7 @@ export default function NotFound() {
             Go to the dashboard
           </Link>
           <Link className="app-row-link" href="/">
-            SPA overview
+            ← Back to the SPA overview
           </Link>
         </div>
       </div>

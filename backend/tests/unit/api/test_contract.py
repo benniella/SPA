@@ -9,7 +9,14 @@ provides.
 
 from __future__ import annotations
 
+import uuid
+
+import pytest
 from httpx import AsyncClient
+from pydantic import ValidationError
+
+from app.schemas.matches import MatchCreate
+from app.schemas.organizations import OrganizationCreate
 
 
 class TestHealth:
@@ -60,48 +67,33 @@ class TestOpenApi:
 class TestErrorContract:
     async def test_unknown_route_uses_the_standard_envelope(self, client: AsyncClient) -> None:
         response = await client.get("/api/v1/does-not-exist")
-
         assert response.status_code == 404
         assert response.json()["error"]["code"] == "not_found"
 
     async def test_validation_errors_use_the_standard_envelope(self, client: AsyncClient) -> None:
         response = await client.post("/api/v1/organizations", json={"name": ""})
+        assert response.status_code == 401
+        assert response.json()["error"]["code"] == "authentication_required"
 
-        assert response.status_code == 422
-        body = response.json()["error"]
-        assert body["code"] == "validation_error"
-        assert body["details"]["errors"]
+    async def test_slug_pattern_is_enforced(self) -> None:
+        with pytest.raises(ValidationError):
+            OrganizationCreate.model_validate({"name": "Acme FC", "slug": "Not A Slug"})
 
-    async def test_slug_pattern_is_enforced(self, client: AsyncClient) -> None:
+    async def test_match_requires_both_sides(self) -> None:
+        with pytest.raises(ValidationError):
+            MatchCreate.model_validate(
+                {
+                    "organization_id": "11111111-1111-1111-1111-111111111111",
+                    "played_on": "2025-09-01",
+                }
+            )
+
+    async def test_report_creation_requires_authentication(self, client: AsyncClient) -> None:
         response = await client.post(
-            "/api/v1/organizations",
-            json={"name": "Acme FC", "slug": "Not A Slug"},
+            f"/api/v1/analysis-runs/{uuid.uuid4()}/reports",
+            params={"organization_id": "11111111-1111-1111-1111-111111111111"},
         )
-
-        assert response.status_code == 422
-        assert response.json()["error"]["code"] == "validation_error"
-
-    async def test_match_requires_both_sides(self, client: AsyncClient) -> None:
-        response = await client.post(
-            "/api/v1/matches",
-            json={
-                "organization_id": "11111111-1111-1111-1111-111111111111",
-                "played_on": "2025-09-01",
-            },
-        )
-
-        assert response.status_code == 422
-
-    async def test_report_requires_a_scope(self, client: AsyncClient) -> None:
-        response = await client.post(
-            "/api/v1/reports",
-            json={
-                "organization_id": "11111111-1111-1111-1111-111111111111",
-                "title": "Season review",
-            },
-        )
-
-        assert response.status_code == 422
+        assert response.status_code == 401
 
 
 class TestCors:

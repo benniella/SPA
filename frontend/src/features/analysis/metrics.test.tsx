@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AnalysisMetricsPanel } from "@/features/analysis/components/analysis-metrics-panel";
 import { SessionProvider } from "@/features/auth/session";
-import type { AnalysisMetrics, Organization } from "@/types/api";
+import type {AuthenticatedUser,  AnalysisMetrics, Organization } from "@/types/api";
 
 const ORGANIZATION: Organization = {
   id: "org-1",
@@ -12,6 +12,21 @@ const ORGANIZATION: Organization = {
   slug: "riverside-fc",
   created_at: "2025-01-01T00:00:00Z",
   updated_at: "2025-01-01T00:00:00Z",
+};
+
+const ACCOUNT: AuthenticatedUser = {
+  id: "user-1",
+  email: "coach@club.example",
+  display_name: "Coach",
+  account_status: "active",
+  email_verified: true,
+  phone_verified: false,
+  phone_number: null,
+  created_at: "2025-01-01T00:00:00Z",
+  last_login_at: null,
+  organizations: [
+    { id: ORGANIZATION.id, name: ORGANIZATION.name, slug: ORGANIZATION.slug, role: "owner" },
+  ],
 };
 
 function metrics(overrides: Partial<AnalysisMetrics> = {}): AnalysisMetrics {
@@ -99,6 +114,10 @@ function stubApi(routes: Record<string, Route>) {
   const calls: string[] = [];
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input));
+    if (url.pathname === "/api/v1/auth/me") {
+      return { ok: true, status: 200, headers: new Headers(), json: async () => ACCOUNT } as Response;
+    }
+
     const method = init?.method ?? "GET";
     calls.push(`${method} ${url.pathname}`);
     for (const [key, route] of Object.entries(routes)) {
@@ -125,7 +144,7 @@ function stubApi(routes: Record<string, Route>) {
 }
 
 function renderPanel() {
-  window.localStorage.setItem("spa.dev.workspace", ORGANIZATION.id);
+  window.localStorage.setItem("spa.workspace", ORGANIZATION.id);
   return render(
     <SessionProvider>
       <AnalysisMetricsPanel runId="run-1" />

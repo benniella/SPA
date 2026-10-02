@@ -336,6 +336,8 @@ export interface Report {
   created_by_id: string | null;
   title: string;
   status: ReportStatus;
+  definition_version: string;
+  analysis_run_id: string | null;
   match_id: string | null;
   team_id: string | null;
   storage_key: string | null;
@@ -345,10 +347,245 @@ export interface Report {
   updated_at: string;
 }
 
+export type ReportObservationType =
+  | "highest_observation_count"
+  | "highest_coverage"
+  | "highest_displacement"
+  | "highest_average_speed"
+  | "highest_peak_speed"
+  | "highest_peak_acceleration"
+  | "longest_duration";
+
+export interface ReportOverview {
+  analysis_run_id: string;
+  analysis_status: AnalysisRunStatus;
+  video_id: string;
+  video_filename: string;
+  match_id: string | null;
+  analysis_created_at: string;
+  analysis_finished_at: string | null;
+  source_width: number | null;
+  source_height: number | null;
+  observation_count: number;
+  track_count: number;
+  metric_definition_version: string;
+  space: MetricSpace;
+}
+
+export interface ReportMetric {
+  name: MetricName;
+  unit: MetricUnit;
+  availability: "available" | "unavailable";
+  value: number | null;
+  sample_count: number;
+}
+
+export interface ReportTrack {
+  track_id: number;
+  space: MetricSpace;
+  metrics: ReportMetric[];
+}
+
+export interface ReportObservation {
+  type: ReportObservationType;
+  track_ids: number[];
+  metric_name: MetricName;
+  unit: MetricUnit;
+  space: MetricSpace;
+  value: number;
+  message: string;
+}
+
+export interface ReportContent {
+  definition_version: string;
+  overview: ReportOverview;
+  tracks: ReportTrack[];
+  observations: ReportObservation[];
+  limitations: string[];
+}
+
+export interface ReportDetail extends Report {
+  content: ReportContent | null;
+}
+
 export interface HealthResponse {
   status: string;
   environment: string;
   database: string;
   version: string;
   timestamp: string;
+}
+/* Authentication and account security */
+
+export interface AuthenticatedUserOrganization {
+  id: string;
+  name: string;
+  slug: string;
+  role: string;
+}
+
+export interface AuthenticatedUser {
+  id: string;
+  email: string;
+  display_name: string;
+  account_status: string;
+  email_verified: boolean;
+  phone_verified: boolean;
+  phone_number: string | null;
+  created_at: string;
+  last_login_at: string | null;
+  organizations: AuthenticatedUserOrganization[];
+}
+
+export interface RegisterPayload {
+  email: string;
+  password: string;
+  display_name: string;
+  organization_name: string;
+  organization_slug: string;
+}
+
+export interface LoginPayload {
+  email: string;
+  password: string;
+}
+
+export interface RegistrationAccepted {
+  status: string;
+  verification_required: boolean;
+}
+
+export interface MessageAccepted {
+  status: string;
+}
+
+export interface SessionSummary {
+  id: string;
+  created_at: string;
+  last_used_at: string;
+  expires_at: string;
+  revoked: boolean;
+  current: boolean;
+  description: string;
+  network: string | null;
+}
+
+export interface SecurityEventRead {
+  id: string;
+  event_type: string;
+  created_at: string;
+  description: string;
+}
+
+export interface PasswordChangePayload {
+  current_password: string;
+  new_password: string;
+}
+
+export interface PasswordResetPayload {
+  token: string;
+  new_password: string;
+}
+
+export interface EmailChangePayload {
+  new_email: string;
+  current_password: string;
+}
+
+export interface RecoveryCompletePayload {
+  email: string;
+  code: string;
+  new_password: string;
+}
+
+/* Platform administration, mirroring 'app/schemas/admin.py'.
+   'status' is the lifecycle state the backend reports — one of 'invited',
+   'active', 'suspended' or 'revoked'. It is a string rather than a union so a
+   status added by a newer backend does not break an older client, matching the
+   convention the API uses elsewhere. */
+
+export interface Administrator {
+  id: string;
+  user_id: string;
+  /** Absent when the account is gone. */
+  email: string | null;
+  status: string;
+  /** Role names, distinct from the privilege identifiers below. */
+  roles: string[];
+  /** Privilege identifiers such as 'admins.read'. */
+  privileges: string[];
+  mfa_enrolled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RoleList {
+  items: string[];
+}
+
+export interface PrivilegeList {
+  items: string[];
+}
+
+export interface RolesUpdatePayload {
+  roles: string[];
+}
+
+export interface InvitationCreatePayload {
+  email: string;
+  role: string;
+}
+
+export interface InvitationCreateResult {
+  invitation_id: string;
+  status: string;
+}
+
+export interface InvitationResendResult {
+  invitation_id: string;
+  status: string;
+}
+
+export interface InvitationRevokeResult {
+  invitation_id: string;
+  status: string;
+}
+
+/** Acceptance leaves the record 'invited': activation requires MFA enrolment. */
+export interface InvitationAccepted {
+  administrator_id: string;
+  status: string;
+}
+
+/** The one-time secret and URI shown during enrolment. Never persisted. */
+export interface MfaEnrollmentMaterial {
+  secret: string;
+  provisioning_uri: string;
+}
+
+export interface MfaCodeSubmitPayload {
+  code: string;
+}
+
+export interface MfaChallengeStarted {
+  expires_at: string;
+  max_attempts: number;
+}
+
+export interface MfaChallenge {
+  challenge_id: string;
+  expires_at: string;
+}
+
+/** Shown once; regenerating replaces the previous set. */
+export interface MfaRecoveryCodes {
+  codes: string[];
+}
+
+export interface AuditEvent {
+  id: string;
+  actor_id: string | null;
+  event_type: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
 }

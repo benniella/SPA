@@ -17,6 +17,8 @@ from typing import Literal
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.domain.users.credentials import PasswordPolicy
+
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 Environment = Literal["local", "staging", "production"]
@@ -77,26 +79,76 @@ class Settings(BaseSettings):
     csrf_cookie_name: str = "spa_csrf"
     csrf_header_name: str = "X-CSRF-Token"
 
+    # Development-only identity header. Lets the existing integration suite and a
+    # local frontend act as a chosen user without a credential exchange. There is
+    # no value of this setting that enables it in production: the dependency
+    # checks the environment independently.
+    dev_identity_header: bool = True
+    # Enables CSRF enforcement in local development as well. Off by default
+    # because it makes a hand-run request need two cookies; it is always on
+    # outside local, where the setting has no effect.
+    csrf_enabled_locally: bool = False
+
+    # Account security. Verification and reset tokens are hashed with
+    # 'session_secret' before storage, so a database read cannot be replayed as
+    # a valid link.
     email_verification_ttl_hours: int = 24 * 2
     password_reset_ttl_hours: int = 2
+    email_change_ttl_hours: int = 24
+    recovery_ttl_hours: int = 2
     password_min_length: int = 10
     password_max_length: int = 200
 
+    # One-time codes for phone verification and account recovery.
+    otp_ttl_minutes: int = 10
+    otp_max_attempts: int = 5
+    otp_resend_cooldown_seconds: int = 60
+    otp_length: int = 6
+
+    # Comma-separated origins permitted to receive a state-changing request.
+    # Empty falls back to 'cors_origins', which is correct while the frontend and
+    # the API are the only two clients.
+    csrf_trusted_origins: str = ""
+
+    # Suspicious-login signals. Drives an event and, past the threshold, an
+    # additional verification requirement; it is not a risk score.
+    suspicious_login_failure_threshold: int = 5
+    suspicious_login_window_minutes: int = 15
+
     # Transactional email. 'console' prints the message instead of sending it, so
-    # local development never needs a provider credential and never sends real mail.
-    email_backend: Literal["console", "resend"] = "console"
+    # local development never needs a provider credential and never sends real
+    # mail. 'smtp' sends over a plain SMTP connection; 'resend' uses the Resend
+    # HTTP API.
+    email_backend: Literal["console", "smtp", "resend"] = "console"
     resend_api_key: str = ""
     email_from: str = "SPA <no-reply@spa.local>"
     email_reply_to: str = ""
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_starttls: bool = True
 
-    # Provisional in-process rate limiting. Documented as insufficient for
-    # multi-process deployments; the production strategy is a shared counter keyed
-    # by client identity.
+    # SMS delivery for phone verification. Empty means no SMS provider is
+    # configured: a verification code is never reported as delivered when it was
+    # not, and the phone endpoints answer 503 instead of pretending.
+    sms_backend: Literal["none", "console", "smtp_gateway"] = "none"
+    sms_sender: str = "SPA"
+    # 'smtp_gateway' sends an SMS through a carrier email-to-SMS gateway, which is
+    # authenticated by the same SMTP credentials as transactional email.
+    sms_gateway_domain: str = ""
+
+    # Authentication rate limiting. Counters live in KeyDB when it is reachable
+    # and fall back to an in-process counter otherwise; failure to reach the
+    # counter store never turns a limit off for an authentication endpoint.
     rate_limit_enabled: bool = True
+    rate_limit_store: Literal["process", "keydb"] = "process"
     rate_limit_login_per_minute: int = 10
+    rate_limit_login_per_account_per_minute: int = 5
     rate_limit_register_per_hour: int = 20
     rate_limit_password_reset_per_hour: int = 10
     rate_limit_resend_verification_per_hour: int = 5
+    rate_limit_phone_per_hour: int = 10
 
     storage_backend: Literal["local", "s3"] = "local"
     storage_local_root: str = "./var/storage"
@@ -239,6 +291,17 @@ class Settings(BaseSettings):
     @property
     def session_cookie_samesite_value(self) -> Literal["lax", "strict", "none"]:
         return "none" if self.session_cookie_cross_site else self.session_cookie_samesite
+
+    @property
+    def csrf_trusted_origin_list(self) -> list[str]:
+        configured = self.csrf_trusted_origins or self.cors_origins
+        return [origin.strip() for origin in configured.split(",") if origin.strip()]
+
+    @property
+    def password_policy(self) -> PasswordPolicy:
+        return PasswordPolicy(
+            min_length=self.password_min_length, max_length=self.password_max_length
+        )
 
 
 @lru_cache(maxsize=1)

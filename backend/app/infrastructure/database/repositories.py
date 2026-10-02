@@ -7,12 +7,23 @@ and entities are returned rather than ORM models.
 
 from __future__ import annotations
 
+import builtins
 import uuid
-from datetime import date
+from datetime import date, datetime
+from typing import cast
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.admin.entities import (
+    AdminId,
+    AdminIdentity,
+    AdminInvitation,
+    AdminMfaChallenge,
+    AdminPrivilege,
+    AdminRole,
+)
 from app.domain.analysis.entities import AnalysisRun
 from app.domain.analysis.metrics import PerformanceMetric
 from app.domain.jobs.entities import JobStatus, ProcessingJob
@@ -21,6 +32,15 @@ from app.domain.metrics.types import TrackMetricRecord
 from app.domain.organizations.entities import Organization, OrganizationMembership
 from app.domain.players.entities import Player
 from app.domain.reports.entities import Report
+from app.domain.security.entities import (
+    Challenge,
+    ChallengeKind,
+    OtpChallenge,
+    OtpPurpose,
+    SecurityEvent,
+    SecurityEventType,
+    Session,
+)
 from app.domain.shared import (
     AnalysisRunId,
     JobId,
@@ -39,14 +59,28 @@ from app.domain.users.entities import User
 from app.domain.videos.entities import Video
 from app.infrastructure.database import mappers
 from app.infrastructure.database.models import (
+    AdminInvitationModel,
+    AdminMfaChallengeModel,
+    AdminMfaCredentialModel,
+    AdminPrivilegeGrantModel,
+    AdminPrivilegeModel,
+    AdminRecoveryCodeModel,
+    AdminRoleAssignmentModel,
+    AdminRoleModel,
+    AdminRolePrivilegeModel,
     AnalysisRunModel,
     MatchModel,
     OrganizationMembershipModel,
     OrganizationModel,
+    OtpChallengeModel,
     PerformanceMetricModel,
+    PlatformAdminModel,
     PlayerModel,
     ProcessingJobModel,
     ReportModel,
+    SecurityChallengeModel,
+    SecurityEventModel,
+    SessionModel,
     TeamMembershipModel,
     TeamModel,
     TrackingDatasetModel,
@@ -63,6 +97,13 @@ def _coerce_uuid(value: object) -> uuid.UUID:
     Handy because job payloads are JSON and therefore carry ids as strings.
     """
     return value if isinstance(value, uuid.UUID) else uuid.UUID(str(value))
+
+
+_ADMIN_EVENT_TYPES = tuple(
+    event_type
+    for event_type in SecurityEventType.ALLOWED
+    if event_type.startswith("ADMIN_")
+)
 
 
 class SqlOrganizationRepository:
@@ -97,6 +138,18 @@ class SqlOrganizationRepository:
         await self._session.execute(
             delete(OrganizationModel).where(OrganizationModel.id == organization.id)
         )
+
+    async def add_membership(self, membership: OrganizationMembership) -> None:
+        self._session.add(mappers.membership_to_model(membership))
+        await self._session.flush()
+
+    async def list_for_user(self, user_id: UserId) -> builtins.list[OrganizationMembership]:
+        result = await self._session.execute(
+            select(OrganizationMembershipModel)
+            .where(OrganizationMembershipModel.user_id == _coerce_uuid(user_id))
+            .order_by(OrganizationMembershipModel.created_at)
+        )
+        return [mappers.membership_to_domain(model) for model in result.scalars()]
 
     async def get_membership(
         self,
@@ -137,6 +190,232 @@ class SqlUserRepository:
             select(UserModel).order_by(UserModel.created_at.desc()).limit(limit).offset(offset)
         )
         return [mappers.user_to_domain(model) for model in result.scalars()]
+
+    async def update(self, user: User) -> None:
+        model = await self._session.get(UserModel, _coerce_uuid(user.id))
+        if model is None:
+            raise LookupError(f"User {user.id} is not persisted.")
+        mappers.apply_user_to_model(user, model)
+        await self._session.flush()
+
+
+class SqlSessionRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(self, session: Session, *, token_hash: str) -> None:
+        self._session.add(mappers.session_to_model(session, token_hash=token_hash))
+        await self._session.flush()
+
+    async def get_by_token_hash(self, token_hash: str) -> Session | None:
+        result = await self._session.execute(
+            select(SessionModel).where(SessionModel.token_hash == token_hash)
+        )
+        model = result.scalar_one_or_none()
+        return mappers.session_to_domain(model) if model else None
+
+    async def get_for_user(self, session_id: object, user_id: UserId) -> Session | None:
+        result = await self._session.execute(
+            select(SessionModel).where(
+                SessionModel.id == _coerce_uuid(session_id),
+                SessionModel.user_id == _coerce_uuid(user_id),
+            )
+        )
+        model = result.scalar_one_or_none()
+        return mappers.session_to_domain(model) if model else None
+
+    async def list_for_user(self, user_id: UserId) -> list[Session]:
+        result = await self._session.execute(
+            select(SessionModel)
+            .where(SessionModel.user_id == _coerce_uuid(user_id))
+            .order_by(SessionModel.created_at.desc())
+        )
+        return [mappers.session_to_domain(model) for model in result.scalars()]
+
+    async def update(self, session: Session) -> None:
+        model = await self._session.get(SessionModel, _coerce_uuid(session.id))
+        if model is None:
+            raise LookupError(f"Session {session.id} is not persisted.")
+        mappers.apply_session_to_model(session, model)
+        await self._session.flush()
+
+    async def revoke_all_for_user(
+        self,
+        user_id: UserId,
+        *,
+        except_session_id: object = None,
+    ) -> int:
+        statement = (
+            update(SessionModel)
+            .where(
+                SessionModel.user_id == _coerce_uuid(user_id),
+                SessionModel.revoked_at.is_(None),
+            )
+            .values(revoked_at=func.now())
+        )
+        if except_session_id is not None:
+            statement = statement.where(SessionModel.id != _coerce_uuid(except_session_id))
+        result = await self._session.execute(statement)
+        await self._session.flush()
+        return int(cast(CursorResult, result).rowcount or 0)
+
+
+class SqlSecurityChallengeRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(self, challenge: Challenge) -> None:
+        self._session.add(mappers.challenge_to_model(challenge))
+        await self._session.flush()
+
+    async def get_by_token_hash(self, token_hash: str) -> Challenge | None:
+        result = await self._session.execute(
+            select(SecurityChallengeModel).where(SecurityChallengeModel.token_hash == token_hash)
+        )
+        model = result.scalar_one_or_none()
+        return mappers.challenge_to_domain(model) if model else None
+
+    async def consume(self, challenge: Challenge) -> None:
+        model = await self._session.get(SecurityChallengeModel, _coerce_uuid(challenge.id))
+        if model is None:
+            raise LookupError(f"Challenge {challenge.id} is not persisted.")
+        model.consumed_at = challenge.consumed_at or func.now()
+        await self._session.flush()
+
+    async def invalidate_active(self, user_id: UserId, kind: ChallengeKind) -> int:
+        result = await self._session.execute(
+            update(SecurityChallengeModel)
+            .where(
+                SecurityChallengeModel.user_id == _coerce_uuid(user_id),
+                SecurityChallengeModel.kind == str(kind),
+                SecurityChallengeModel.consumed_at.is_(None),
+            )
+            .values(consumed_at=func.now())
+        )
+        await self._session.flush()
+        return int(cast(CursorResult, result).rowcount or 0)
+
+    async def latest_for_user(self, user_id: UserId, kind: ChallengeKind) -> Challenge | None:
+        result = await self._session.execute(
+            select(SecurityChallengeModel)
+            .where(
+                SecurityChallengeModel.user_id == _coerce_uuid(user_id),
+                SecurityChallengeModel.kind == str(kind),
+            )
+            .order_by(SecurityChallengeModel.created_at.desc())
+            .limit(1)
+        )
+        model = result.scalar_one_or_none()
+        return mappers.challenge_to_domain(model) if model else None
+
+
+class SqlOtpChallengeRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(self, challenge: OtpChallenge) -> None:
+        self._session.add(mappers.otp_challenge_to_model(challenge))
+        await self._session.flush()
+
+    async def latest_for_user(self, user_id: UserId, purpose: OtpPurpose) -> OtpChallenge | None:
+        result = await self._session.execute(
+            select(OtpChallengeModel)
+            .where(
+                OtpChallengeModel.user_id == _coerce_uuid(user_id),
+                OtpChallengeModel.purpose == str(purpose),
+            )
+            .order_by(OtpChallengeModel.created_at.desc())
+            .limit(1)
+        )
+        model = result.scalar_one_or_none()
+        return mappers.otp_challenge_to_domain(model) if model else None
+
+    async def update(self, challenge: OtpChallenge) -> None:
+        model = await self._session.get(OtpChallengeModel, _coerce_uuid(challenge.id))
+        if model is None:
+            raise LookupError(f"OTP challenge {challenge.id} is not persisted.")
+        model.attempts = challenge.attempts
+        model.consumed_at = challenge.consumed_at
+        await self._session.flush()
+
+    async def invalidate_active(self, user_id: UserId, purpose: OtpPurpose) -> int:
+        result = await self._session.execute(
+            update(OtpChallengeModel)
+            .where(
+                OtpChallengeModel.user_id == _coerce_uuid(user_id),
+                OtpChallengeModel.purpose == str(purpose),
+                OtpChallengeModel.consumed_at.is_(None),
+            )
+            .values(consumed_at=func.now())
+        )
+        await self._session.flush()
+        return int(cast(CursorResult, result).rowcount or 0)
+
+
+class SqlSecurityEventRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(self, event: SecurityEvent) -> None:
+        self._session.add(mappers.security_event_to_model(event))
+        await self._session.flush()
+
+    async def list_for_user(
+        self,
+        user_id: UserId,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        event_type: SecurityEventType | None = None,
+    ) -> list[SecurityEvent]:
+        statement = select(SecurityEventModel).where(
+            SecurityEventModel.user_id == _coerce_uuid(user_id)
+        )
+        if event_type is not None:
+            statement = statement.where(SecurityEventModel.event_type == str(event_type))
+        result = await self._session.execute(
+            statement.order_by(SecurityEventModel.created_at.desc()).limit(limit).offset(offset)
+        )
+        return [mappers.security_event_to_domain(model) for model in result.scalars()]
+
+    async def count_recent(
+        self,
+        user_id: UserId | None,
+        event_type: str,
+        *,
+        since: object,
+    ) -> int:
+        statement = (
+            select(func.count())
+            .select_from(SecurityEventModel)
+            .where(
+                SecurityEventModel.event_type == str(event_type),
+                SecurityEventModel.created_at >= since,
+            )
+        )
+        if user_id is not None:
+            statement = statement.where(SecurityEventModel.user_id == _coerce_uuid(user_id))
+        result = await self._session.execute(statement)
+        return int(result.scalar_one())
+
+    async def list_administrative(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        event_type: str | None = None,
+    ) -> list[SecurityEvent]:
+        statement = select(SecurityEventModel).where(
+            SecurityEventModel.event_type.in_(_ADMIN_EVENT_TYPES)
+        )
+        if event_type is not None:
+            statement = statement.where(SecurityEventModel.event_type == str(event_type))
+        result = await self._session.execute(
+            statement.order_by(SecurityEventModel.created_at.desc(), SecurityEventModel.id)
+            .limit(limit)
+            .offset(offset)
+        )
+        return [mappers.security_event_to_domain(model) for model in result.scalars()]
 
 
 class SqlTeamRepository:
@@ -682,6 +961,38 @@ class SqlReportRepository:
         model = await self._session.get(ReportModel, _coerce_uuid(report_id))
         return mappers.report_to_domain(model) if model else None
 
+    async def update(self, report: Report) -> None:
+        model = await self._session.get(ReportModel, _coerce_uuid(report.id))
+        if model is None:
+            raise LookupError(f"Report {report.id} is not persisted.")
+        mappers.apply_report_to_model(report, model)
+        await self._session.flush()
+
+    async def find_for_run(
+        self,
+        organization_id: OrganizationId,
+        run_id: AnalysisRunId,
+    ) -> Report | None:
+        """The run-scoped report for an analysis run, if one exists.
+
+        The scope is a column, so this is an indexed lookup rather than a scan of
+        the organization's reports. Only a report scoped to the run alone is its
+        report: a match- or team-scoped report lists no run here.
+        """
+        result = await self._session.execute(
+            select(ReportModel)
+            .where(
+                ReportModel.organization_id == _coerce_uuid(organization_id),
+                ReportModel.analysis_run_id == _coerce_uuid(run_id),
+                ReportModel.match_id.is_(None),
+                ReportModel.team_id.is_(None),
+            )
+            .order_by(ReportModel.created_at.desc())
+            .limit(1)
+        )
+        model = result.scalar_one_or_none()
+        return mappers.report_to_domain(model) if model else None
+
     async def list_for_organization(
         self,
         organization_id: OrganizationId,
@@ -697,3 +1008,366 @@ class SqlReportRepository:
             .offset(offset)
         )
         return [mappers.report_to_domain(model) for model in result.scalars()]
+
+
+class SqlAdminRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(self, admin: AdminIdentity) -> None:
+        self._session.add(mappers.admin_to_model(admin))
+        await self._session.flush()
+
+    async def get(self, admin_id: object) -> AdminIdentity | None:
+        model = await self._session.get(PlatformAdminModel, _coerce_uuid(admin_id))
+        return mappers.admin_to_domain(model) if model else None
+
+    async def get_by_user(self, user_id: UserId) -> AdminIdentity | None:
+        result = await self._session.execute(
+            select(PlatformAdminModel).where(PlatformAdminModel.user_id == _coerce_uuid(user_id))
+        )
+        model = result.scalar_one_or_none()
+        return mappers.admin_to_domain(model) if model else None
+
+    async def update(self, admin: AdminIdentity) -> None:
+        model = await self._session.get(PlatformAdminModel, _coerce_uuid(admin.id))
+        if model is None:
+            raise LookupError(f"Administrator {admin.id} is not persisted.")
+        mappers.apply_admin_to_model(admin, model)
+        await self._session.flush()
+
+    async def list(self, *, limit: int = 50, offset: int = 0) -> list[AdminIdentity]:
+        result = await self._session.execute(
+            select(PlatformAdminModel)
+            .order_by(PlatformAdminModel.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return [mappers.admin_to_domain(model) for model in result.scalars()]
+
+
+class SqlAdminRoleRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get_by_name(self, name: str) -> AdminRole | None:
+        model = await self._session.scalar(
+            select(AdminRoleModel).where(AdminRoleModel.name == name)
+        )
+        return AdminRole(model.name) if model else None
+
+    async def id_for_role(self, role: AdminRole) -> object | None:
+        model = await self._session.scalar(
+            select(AdminRoleModel).where(AdminRoleModel.name == str(role))
+        )
+        return model.id if model else None
+
+    async def list(self) -> builtins.list[AdminRole]:
+        result = await self._session.execute(select(AdminRoleModel))
+        return [AdminRole(model.name) for model in result.scalars()]
+
+    async def roles_for_admin(self, admin_id: object) -> builtins.list[AdminRole]:
+        result = await self._session.execute(
+            select(AdminRoleModel)
+            .join(AdminRoleAssignmentModel, AdminRoleAssignmentModel.role_id == AdminRoleModel.id)
+            .where(AdminRoleAssignmentModel.admin_id == _coerce_uuid(admin_id))
+        )
+        return [AdminRole(model.name) for model in result.scalars()]
+
+    async def assign(
+        self,
+        admin_id: object,
+        role: AdminRole,
+        *,
+        assigned_by: UserId | None,
+    ) -> None:
+        role_model = await self._role_row(role)
+        self._session.add(
+            AdminRoleAssignmentModel(
+                admin_id=_coerce_uuid(admin_id),
+                role_id=role_model.id,
+                assigned_by=assigned_by,
+            )
+        )
+        await self._session.flush()
+
+    async def unassign(self, admin_id: object, role: AdminRole) -> None:
+        role_model = await self._role_row(role)
+        await self._session.execute(
+            delete(AdminRoleAssignmentModel).where(
+                AdminRoleAssignmentModel.admin_id == _coerce_uuid(admin_id),
+                AdminRoleAssignmentModel.role_id == role_model.id,
+            )
+        )
+
+    async def _role_row(self, role: AdminRole) -> AdminRoleModel:
+        model = await self._session.scalar(
+            select(AdminRoleModel).where(AdminRoleModel.name == str(role))
+        )
+        if model is None:
+            raise LookupError(f"Administrative role {role} is not in the catalogue.")
+        return model
+
+
+class SqlAdminPrivilegeRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def list(self) -> builtins.list[AdminPrivilege]:
+        result = await self._session.execute(select(AdminPrivilegeModel))
+        return [AdminPrivilege(model.name) for model in result.scalars()]
+
+    async def privileges_for_admin(self, admin_id: object) -> builtins.list[AdminPrivilege]:
+        through_roles = (
+            select(AdminRolePrivilegeModel.privilege_id)
+            .join(
+                AdminRoleAssignmentModel,
+                AdminRoleAssignmentModel.role_id == AdminRolePrivilegeModel.role_id,
+            )
+            .where(AdminRoleAssignmentModel.admin_id == _coerce_uuid(admin_id))
+        )
+        direct = select(AdminPrivilegeGrantModel.privilege_id).where(
+            AdminPrivilegeGrantModel.admin_id == _coerce_uuid(admin_id)
+        )
+        result = await self._session.execute(
+            select(AdminPrivilegeModel).where(
+                AdminPrivilegeModel.id.in_(through_roles.union(direct))
+            )
+        )
+        return [AdminPrivilege(model.name) for model in result.scalars()]
+
+    async def grant(
+        self,
+        admin_id: object,
+        privilege: AdminPrivilege,
+        *,
+        granted_by: UserId | None,
+    ) -> None:
+        self._session.add(
+            AdminPrivilegeGrantModel(
+                admin_id=_coerce_uuid(admin_id),
+                privilege_id=await self._privilege_id(privilege),
+                granted_by=granted_by,
+            )
+        )
+        await self._session.flush()
+
+    async def revoke(self, admin_id: object, privilege: AdminPrivilege) -> None:
+        await self._session.execute(
+            delete(AdminPrivilegeGrantModel).where(
+                AdminPrivilegeGrantModel.admin_id == _coerce_uuid(admin_id),
+                AdminPrivilegeGrantModel.privilege_id == await self._privilege_id(privilege),
+            )
+        )
+
+    async def _privilege_id(self, privilege: AdminPrivilege) -> uuid.UUID:
+        model = await self._session.scalar(
+            select(AdminPrivilegeModel.id).where(AdminPrivilegeModel.name == str(privilege))
+        )
+        if model is None:
+            raise LookupError(f"Privilege {privilege} is not in the catalogue.")
+        return model
+
+
+class SqlAdminInvitationRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(self, invitation: AdminInvitation, *, role_id: object) -> None:
+        self._session.add(mappers.admin_invitation_to_model(invitation, role_id=role_id))
+        await self._session.flush()
+
+    async def get(self, invitation_id: object) -> tuple[AdminInvitation, object] | None:
+        row = (
+            await self._session.execute(
+                select(AdminInvitationModel, AdminRoleModel.name)
+                .join(AdminRoleModel, AdminRoleModel.id == AdminInvitationModel.role_id)
+                .where(AdminInvitationModel.id == _coerce_uuid(invitation_id))
+            )
+        ).first()
+        return self._to_domain(*row) if row else None
+
+    async def get_by_token_hash(self, token_hash: str) -> tuple[AdminInvitation, object] | None:
+        row = (
+            await self._session.execute(
+                select(AdminInvitationModel, AdminRoleModel.name)
+                .join(AdminRoleModel, AdminRoleModel.id == AdminInvitationModel.role_id)
+                .where(AdminInvitationModel.token_hash == token_hash)
+            )
+        ).first()
+        return self._to_domain(*row) if row else None
+
+    async def latest_for_email(self, email: str) -> AdminInvitation | None:
+        row = (
+            await self._session.execute(
+                select(AdminInvitationModel, AdminRoleModel.name)
+                .join(AdminRoleModel, AdminRoleModel.id == AdminInvitationModel.role_id)
+                .where(AdminInvitationModel.email == email)
+                .order_by(AdminInvitationModel.created_at.desc())
+                .limit(1)
+            )
+        ).first()
+        return self._to_domain(*row)[0] if row else None
+
+    async def list(self, *, limit: int = 50, offset: int = 0) -> list[AdminInvitation]:
+        result = await self._session.execute(
+            select(AdminInvitationModel, AdminRoleModel.name)
+            .join(AdminRoleModel, AdminRoleModel.id == AdminInvitationModel.role_id)
+            .order_by(AdminInvitationModel.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return [self._to_domain(model, role_name)[0] for model, role_name in result.all()]
+
+    async def update(self, invitation: AdminInvitation) -> None:
+        model = await self._session.get(AdminInvitationModel, _coerce_uuid(invitation.id))
+        if model is None:
+            raise LookupError(f"Invitation {invitation.id} is not persisted.")
+        model.accepted_at = invitation.accepted_at
+        model.revoked_at = invitation.revoked_at
+        await self._session.flush()
+
+    async def invalidate_for_email(self, email: str) -> int:
+        result = await self._session.execute(
+            update(AdminInvitationModel)
+            .where(
+                AdminInvitationModel.email == email,
+                AdminInvitationModel.revoked_at.is_(None),
+                AdminInvitationModel.accepted_at.is_(None),
+            )
+            .values(revoked_at=func.now())
+        )
+        await self._session.flush()
+        return int(cast(CursorResult, result).rowcount or 0)
+
+    def _to_domain(
+        self, model: AdminInvitationModel, role_name: str
+    ) -> tuple[AdminInvitation, object]:
+        return (
+            mappers.admin_invitation_to_domain(model, role_name=role_name),
+            model.role_id,
+        )
+
+
+class SqlAdminMfaRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def set_secret(self, admin_id: object, *, secret_encrypted: str) -> None:
+        admin_uuid = _coerce_uuid(admin_id)
+        model = await self._session.scalar(
+            select(AdminMfaCredentialModel).where(AdminMfaCredentialModel.admin_id == admin_uuid)
+        )
+        if model is None:
+            self._session.add(
+                AdminMfaCredentialModel(admin_id=admin_uuid, secret_encrypted=secret_encrypted)
+            )
+        else:
+            model.secret_encrypted = secret_encrypted
+        await self._session.flush()
+
+    async def get_secret(self, admin_id: object) -> str | None:
+        model = await self._session.scalar(
+            select(AdminMfaCredentialModel.secret_encrypted).where(
+                AdminMfaCredentialModel.admin_id == _coerce_uuid(admin_id)
+            )
+        )
+        return model
+
+    async def confirm(self, admin_id: object) -> None:
+        await self._session.execute(
+            update(AdminMfaCredentialModel)
+            .where(AdminMfaCredentialModel.admin_id == _coerce_uuid(admin_id))
+            .values(confirmed_at=func.now())
+        )
+        await self._session.flush()
+
+    async def is_confirmed(self, admin_id: object) -> bool:
+        confirmed_at = await self._session.scalar(
+            select(AdminMfaCredentialModel.confirmed_at).where(
+                AdminMfaCredentialModel.admin_id == _coerce_uuid(admin_id)
+            )
+        )
+        return confirmed_at is not None
+
+    async def replace_recovery_codes(self, admin_id: object, *, code_hashes: list[str]) -> None:
+        admin_uuid = _coerce_uuid(admin_id)
+        await self._session.execute(
+            delete(AdminRecoveryCodeModel).where(AdminRecoveryCodeModel.admin_id == admin_uuid)
+        )
+        self._session.add_all(
+            AdminRecoveryCodeModel(admin_id=admin_uuid, code_hash=code_hash)
+            for code_hash in code_hashes
+        )
+        await self._session.flush()
+
+    async def consume_recovery_code(self, admin_id: object, *, code_hash: str) -> bool:
+        model = await self._session.scalar(
+            select(AdminRecoveryCodeModel).where(
+                AdminRecoveryCodeModel.admin_id == _coerce_uuid(admin_id),
+                AdminRecoveryCodeModel.code_hash == code_hash,
+                AdminRecoveryCodeModel.used_at.is_(None),
+            )
+        )
+        if model is None:
+            return False
+        model.used_at = func.now()
+        await self._session.flush()
+        return True
+
+    async def clear(self, admin_id: object) -> None:
+        admin_uuid = _coerce_uuid(admin_id)
+        await self._session.execute(
+            delete(AdminRecoveryCodeModel).where(AdminRecoveryCodeModel.admin_id == admin_uuid)
+        )
+        await self._session.execute(
+            delete(AdminMfaCredentialModel).where(AdminMfaCredentialModel.admin_id == admin_uuid)
+        )
+        await self._session.flush()
+
+    async def start_challenge(
+        self,
+        admin_id: object,
+        *,
+        session_id: object,
+        expires_at: object,
+        max_attempts: int,
+    ) -> None:
+        from app.domain.admin.entities import AdminMfaChallenge
+
+        challenge = AdminMfaChallenge(
+            admin_id=AdminId(_coerce_uuid(admin_id)),
+            session_id=_coerce_uuid(session_id),
+            expires_at=cast(datetime, expires_at),
+            max_attempts=max_attempts,
+        )
+        self._session.add(mappers.admin_mfa_challenge_to_model(challenge))
+        await self._session.flush()
+
+    async def get_challenge(self, admin_id: object, session_id: object) -> AdminMfaChallenge | None:
+        model = await self._session.scalar(
+            select(AdminMfaChallengeModel).where(
+                AdminMfaChallengeModel.admin_id == _coerce_uuid(admin_id),
+                AdminMfaChallengeModel.session_id == _coerce_uuid(session_id),
+                AdminMfaChallengeModel.satisfied_at.is_(None),
+                AdminMfaChallengeModel.expires_at > func.now(),
+                AdminMfaChallengeModel.attempts < AdminMfaChallengeModel.max_attempts,
+            )
+        )
+        return mappers.admin_mfa_challenge_to_domain(model) if model else None
+
+    async def record_challenge_attempt(self, challenge_id: object, *, attempts: int) -> None:
+        await self._session.execute(
+            update(AdminMfaChallengeModel)
+            .where(AdminMfaChallengeModel.id == _coerce_uuid(challenge_id))
+            .values(attempts=attempts)
+        )
+        await self._session.flush()
+
+    async def satisfy_challenge(self, challenge_id: object) -> None:
+        await self._session.execute(
+            update(AdminMfaChallengeModel)
+            .where(AdminMfaChallengeModel.id == _coerce_uuid(challenge_id))
+            .values(satisfied_at=func.now())
+        )
+        await self._session.flush()

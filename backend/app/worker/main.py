@@ -16,6 +16,7 @@ from app.infrastructure.database.unit_of_work import SqlAlchemyUnitOfWorkFactory
 from app.infrastructure.jobs.keydb_queue import KeyDbJobQueue
 from app.infrastructure.processing.cv_pipeline import CvProcessingPipeline
 from app.infrastructure.processing.metrics_pipeline import MetricsPipeline
+from app.infrastructure.processing.report_pipeline import ReportPipeline
 from app.infrastructure.realtime.keydb_events import KeyDbEventPublisher
 from app.infrastructure.storage.local import LocalVideoStorage
 from app.worker.runner import JobWorker
@@ -54,6 +55,10 @@ def build_worker(settings: Settings) -> JobWorker:
             uow_factory=cast(UnitOfWorkFactory, uow_factory),
         ),
         metrics_pipeline=MetricsPipeline(
+            settings=settings,
+            uow_factory=cast(UnitOfWorkFactory, uow_factory),
+        ),
+        report_pipeline=ReportPipeline(
             settings=settings,
             uow_factory=cast(UnitOfWorkFactory, uow_factory),
         ),

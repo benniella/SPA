@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppMobileNav, AppSidebar } from "@/components/app/app-navigation";
 import { RequireSession } from "@/features/auth";
 import { SessionProvider } from "@/features/auth/session";
-import type { Organization } from "@/types/api";
+import type {AuthenticatedUser,  Organization } from "@/types/api";
 
 const replace = vi.fn();
 let pathname = "/dashboard";
@@ -22,11 +22,41 @@ const ORGANIZATION: Organization = {
   updated_at: "2025-01-01T00:00:00Z",
 };
 
-function stubApi(routes: Record<string, unknown>) {
+const ACCOUNT: AuthenticatedUser = {
+  id: "user-1",
+  email: "coach@club.example",
+  display_name: "Coach",
+  account_status: "active",
+  email_verified: true,
+  phone_verified: false,
+  phone_number: null,
+  created_at: "2025-01-01T00:00:00Z",
+  last_login_at: null,
+  organizations: [
+    { id: ORGANIZATION.id, name: ORGANIZATION.name, slug: ORGANIZATION.slug, role: "owner" },
+  ],
+};
+
+function stubApi(routes: Record<string, unknown>, options: { unauthenticated?: boolean } = {}) {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
+      if (url.includes("/auth/me")) {
+        return options.unauthenticated
+          ? ({
+              ok: false,
+              status: 401,
+              headers: new Headers(),
+              json: async () => ({ error: { code: "unauthenticated", message: "Sign in." } }),
+            } as Response)
+          : ({
+              ok: true,
+              status: 200,
+              headers: new Headers(),
+              json: async () => ACCOUNT,
+            } as Response);
+      }
       for (const [path, payload] of Object.entries(routes)) {
         if (url.includes(path)) {
           return {
@@ -63,13 +93,14 @@ afterEach(() => {
 });
 
 describe("AppSidebar", () => {
-  it("lists every application destination", () => {
+  it("lists every application destination", async () => {
     stubApi({ "/organizations": organizationsPage });
     render(
       <SessionProvider>
         <AppSidebar />
       </SessionProvider>,
     );
+    await waitFor(() => expect(screen.getByRole("link", { name: "Dashboard" })).toBeInTheDocument());
 
     for (const label of [
       "Dashboard",
@@ -113,13 +144,14 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("link", { name: "Teams" })).toHaveAttribute("aria-current", "page");
   });
 
-  it("exposes the collapse control as an expandable button", () => {
+  it("exposes the collapse control as an expandable button", async () => {
     stubApi({ "/organizations": organizationsPage });
     render(
       <SessionProvider>
         <AppSidebar />
       </SessionProvider>,
     );
+    await waitFor(() => expect(screen.getByRole("navigation")).toBeInTheDocument());
 
     expect(screen.getByRole("button", { name: "Collapse navigation" })).toHaveAttribute(
       "aria-expanded",
@@ -129,13 +161,14 @@ describe("AppSidebar", () => {
 });
 
 describe("AppMobileNav", () => {
-  it("is a labelled navigation landmark", () => {
+  it("is a labelled navigation landmark", async () => {
     stubApi({ "/organizations": organizationsPage });
     render(
       <SessionProvider>
         <AppMobileNav />
       </SessionProvider>,
     );
+    await waitFor(() => expect(screen.getByRole("navigation")).toBeInTheDocument());
 
     expect(screen.getByRole("navigation", { name: "Application" })).toBeInTheDocument();
   });
@@ -181,8 +214,7 @@ describe("RequireSession", () => {
   });
 
   it("redirects rather than rendering when there is no session", async () => {
-    stubApi({ "/organizations": organizationsPage });
-
+    stubApi({}, { unauthenticated: true });
     render(
       <SessionProvider>
         <RequireSession from="/dashboard">
@@ -190,14 +222,12 @@ describe("RequireSession", () => {
         </RequireSession>
       </SessionProvider>,
     );
-
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/sign-in?from=%2Fdashboard"));
     expect(screen.queryByText("Protected dashboard content")).not.toBeInTheDocument();
   });
-
-  it("renders the application once a workspace is selected", async () => {
-    stubApi({ "/organizations": organizationsPage });
-    window.localStorage.setItem("spa.dev.workspace", ORGANIZATION.id);
+  it("renders the application once a session resolves", async () => {
+    stubApi({});
+    window.localStorage.setItem("spa.workspace", ORGANIZATION.id);
 
     render(
       <SessionProvider>
@@ -213,9 +243,9 @@ describe("RequireSession", () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
-  it("treats a stored workspace that no longer exists as unauthenticated", async () => {
-    stubApi({ "/organizations": organizationsPage });
-    window.localStorage.setItem("spa.dev.workspace", "org-does-not-exist");
+  it("falls back to the account's first workspace when the stored one is gone", async () => {
+    stubApi({});
+    window.localStorage.setItem("spa.workspace", "org-does-not-exist");
 
     render(
       <SessionProvider>
@@ -225,8 +255,8 @@ describe("RequireSession", () => {
       </SessionProvider>,
     );
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/sign-in?from=%2Fteams"));
-    expect(window.localStorage.getItem("spa.dev.workspace")).toBeNull();
+    await waitFor(() => expect(screen.getByText("Protected content")).toBeInTheDocument());
+    expect(window.localStorage.getItem("spa.workspace")).toBe(ORGANIZATION.id);
   });
 
   it("does not redirect to a non-application path from the from parameter", () => {

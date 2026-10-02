@@ -1,6 +1,6 @@
 import { api, type RequestOptions } from "@/lib/api-client";
 import { queryString } from "@/services/query";
-import type { Page, Report } from "@/types/api";
+import type { Page, Report, ReportDetail } from "@/types/api";
 
 export function listReports(
   organizationId: string,
@@ -17,9 +17,23 @@ export function getReport(
   id: string,
   organizationId: string,
   options?: RequestOptions,
-): Promise<Report> {
-  return api.get<Report>(
+): Promise<ReportDetail> {
+  return api.get<ReportDetail>(
     `/reports/${encodeURIComponent(id)}${queryString({ organization_id: organizationId })}`,
+    options,
+  );
+}
+
+export function createRunReport(
+  runId: string,
+  organizationId: string,
+  options?: RequestOptions,
+): Promise<Report> {
+  return api.post<Report>(
+    `/analysis-runs/${encodeURIComponent(runId)}/reports${queryString({
+      organization_id: organizationId,
+    })}`,
+    undefined,
     options,
   );
 }

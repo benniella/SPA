@@ -2,13 +2,36 @@
 
 import Link from "next/link";
 
+import { DataCell, DataRow, DataTable } from "@/components/ui/data-table";
 import { ErrorState } from "@/components/ui/error-state";
 import { LoadingState } from "@/components/ui/loading-state";
-import { PlannedState } from "@/components/ui/states";
+import { StateBlock } from "@/components/ui/states";
+import { AnalysisVisualizationPanel } from "@/features/analysis/components/analysis-visualization-panel";
+import { formatMetricValue } from "@/features/analysis/components/visualization/format";
 import { useOrganizationId } from "@/features/auth/session";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { formatDateTime } from "@/lib/format";
 import { getReport } from "@/services/reports";
+import type { MetricName, ReportContent, ReportMetric, ReportTrack } from "@/types/api";
+
+const TRACK_METRICS: ReadonlyArray<{ name: MetricName; label: string }> = [
+  { name: "observation_count", label: "Observations" },
+  { name: "duration", label: "Duration" },
+  { name: "coverage", label: "Coverage" },
+  { name: "displacement", label: "Displacement" },
+  { name: "average_speed", label: "Average speed" },
+  { name: "peak_speed", label: "Peak speed" },
+  { name: "average_acceleration", label: "Average acceleration" },
+  { name: "peak_acceleration", label: "Peak acceleration" },
+  { name: "mean_confidence", label: "Mean confidence" },
+];
+
+const REPORT_STATUS_LABELS: Record<string, string> = {
+  draft: "Draft",
+  generating: "Generating",
+  ready: "Ready",
+  failed: "Failed",
+};
 
 export function ReportDetail({ reportId }: { reportId: string }) {
   const organizationId = useOrganizationId();
@@ -21,7 +44,7 @@ export function ReportDetail({ reportId }: { reportId: string }) {
 
   if (organizationId === null) {
     return (
-      <PlannedState
+      <StateBlock
         title="No workspace selected"
         description="A report belongs to an organization. Choose a workspace to open it."
       />
@@ -43,83 +66,195 @@ export function ReportDetail({ reportId }: { reportId: string }) {
 
           <dl className="fact-list">
             <Fact label="Title" value={record.title} />
-            <Fact label="Status" value={record.status} />
+            <Fact label="Status" value={REPORT_STATUS_LABELS[record.status] ?? record.status} />
+            <Fact label="Report definition" value={record.definition_version} />
             <Fact label="Created" value={formatDateTime(record.created_at)} />
             <Fact label="Generated" value={formatDateTime(record.generated_at)} />
             <Fact
-              label="Match"
+              label="Analysis run"
               value={
-                record.match_id ? (
+                record.analysis_run_id ? (
                   <Link
                     className="app-row-link"
-                    href={`/matches/${encodeURIComponent(record.match_id)}`}
+                    href={`/analysis/${encodeURIComponent(record.analysis_run_id)}`}
                   >
-                    Open fixture
+                    Open analysis run
                   </Link>
                 ) : (
-                  "Not scoped to a match"
-                )
-              }
-            />
-            <Fact
-              label="Team"
-              value={
-                record.team_id ? (
-                  <Link
-                    className="app-row-link"
-                    href={`/teams/${encodeURIComponent(record.team_id)}`}
-                  >
-                    Open team
-                  </Link>
-                ) : (
-                  "Not scoped to a team"
+                  "Not scoped to a run"
                 )
               }
             />
           </dl>
 
           {record.error_message ? (
-            <div className="state-block" data-tone="error" role="alert">
-              <h3 className="state-title">Generation failed</h3>
-              <p className="state-text">{record.error_message}</p>
-            </div>
+            <p className="text-caption" role="alert">
+              {record.error_message}
+            </p>
           ) : null}
         </div>
 
         <div className="stack stack-4">
-          <PlannedState
+          <StateBlock
             title="No document to download"
-            description="Opening a report document needs a file to have been rendered and an endpoint that turns its storage key into a download URL. Neither exists, so there is no download control."
-            note="Not available yet. This needs reporting."
+            description="A report is served as structured data. A downloadable document format is not implemented yet, so there is no download control."
           />
         </div>
       </div>
 
-      <section aria-labelledby="report-body-heading" className="stack stack-4">
-        <h2 id="report-body-heading" className="heading-subsection">
-          Contents
+      {record.status === "generating" || record.status === "draft" ? (
+        <StateBlock
+          title="This report is still being generated"
+          description="A report is a snapshot of an analysis run's metrics. Its contents appear once generation completes."
+        />
+      ) : null}
+
+      {record.status === "failed" ? (
+        <StateBlock
+          tone="error"
+          title="This report could not be generated"
+          description="Generation reads the analysis run's persisted metrics. Requesting the report again retries it in place."
+        />
+      ) : null}
+
+      {record.content ? <ReportBody content={record.content} runId={record.analysis_run_id} /> : null}
+    </div>
+  );
+}
+
+function ReportBody({ content, runId }: { content: ReportContent; runId: string | null }) {
+  const overview = content.overview;
+
+  return (
+    <div className="stack stack-7">
+      <section aria-labelledby="report-overview-heading" className="stack stack-4">
+        <h2 id="report-overview-heading" className="heading-subsection">
+          Analysis overview
         </h2>
 
-        <PlannedState
-          title="This report has no contents yet"
-          description="A report is designed to carry performance metrics, spatial views and the analysis runs it was built from, frozen at the moment it was generated. Nothing assembles those sections yet, so the body is empty."
-          note="Not available yet. This needs reporting and analysis."
-        />
+        <dl className="fact-list">
+          <Fact label="Analysis status" value={overview.analysis_status} />
+          <Fact label="Video" value={overview.video_filename} />
+          <Fact label="Analysed" value={formatDateTime(overview.analysis_created_at)} />
+          <Fact label="Source frame" value={frameLabel(overview)} />
+          <Fact label="Tracks" value={overview.track_count.toLocaleString()} />
+          <Fact label="Observations" value={overview.observation_count.toLocaleString()} />
+          <Fact label="Metric definition" value={overview.metric_definition_version} />
+        </dl>
+
+        <p className="text-caption">
+          Analysis measurements are reported in source-video space (pixels). Pitch calibration is not
+          available, so nothing here is a physical distance or speed.
+        </p>
       </section>
 
-      <section aria-labelledby="report-provenance-heading" className="stack stack-4">
-        <h2 id="report-provenance-heading" className="heading-subsection">
-          Provenance
+      <section aria-labelledby="report-tracks-heading" className="stack stack-4">
+        <h2 id="report-tracks-heading" className="heading-subsection">
+          Track summary
         </h2>
 
-        <PlannedState
-          title="Run provenance is not exposed"
-          description="A report is designed to name the analysis runs that produced its numbers, so a figure can be traced back to the footage it came from. Those identifiers are not returned yet, so none are shown here."
-          note="Not available yet. This needs reporting."
-        />
+        {content.tracks.length === 0 ? (
+          <StateBlock
+            title="No track metrics in this report"
+            description="The analysis run produced no per-track metrics, so the report has no track summary."
+          />
+        ) : (
+          <DataTable
+            caption="Derived metrics for each tracked object in this report"
+            columns={[
+              { id: "track", header: "Track", numeric: true },
+              ...TRACK_METRICS.map((metric) => ({
+                id: metric.name,
+                header: metric.label,
+                numeric: true,
+                secondary: true,
+              })),
+            ]}
+          >
+            {content.tracks.map((track) => (
+              <DataRow key={track.track_id}>
+                <DataCell numeric primary>
+                  {track.track_id}
+                </DataCell>
+                {TRACK_METRICS.map((metric) => (
+                  <DataCell key={metric.name} numeric secondary>
+                    {formatReportMetric(findMetric(track, metric.name))}
+                  </DataCell>
+                ))}
+              </DataRow>
+            ))}
+          </DataTable>
+        )}
+      </section>
+
+      <section aria-labelledby="report-observations-heading" className="stack stack-4">
+        <h2 id="report-observations-heading" className="heading-subsection">
+          Data observations
+        </h2>
+
+        {content.observations.length === 0 ? (
+          <StateBlock
+            title="No observations to report"
+            description="Each observation names the track holding the highest measured value for one metric. None could be derived from this run's available metrics."
+          />
+        ) : (
+          <ul className="ruled-list">
+            {content.observations.map((observation) => (
+              <li key={observation.type} className="ruled-item">
+                <span className="text-body">{observation.message}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {runId ? (
+        <section aria-labelledby="report-visualization-heading" className="stack stack-4">
+          <h2 id="report-visualization-heading" className="heading-subsection">
+            Spatial &amp; activity analysis
+          </h2>
+          <AnalysisVisualizationPanel runId={runId} />
+        </section>
+      ) : null}
+
+      <section aria-labelledby="report-limitations-heading" className="stack stack-4">
+        <h2 id="report-limitations-heading" className="heading-subsection">
+          Data limitations
+        </h2>
+
+        <ul className="document-list">
+          {content.limitations.map((limitation) => (
+            <li key={limitation} className="document-list-item">
+              {limitation}
+            </li>
+          ))}
+        </ul>
       </section>
     </div>
   );
+}
+
+function findMetric(track: ReportTrack, name: MetricName): ReportMetric | undefined {
+  return track.metrics.find((metric) => metric.name === name);
+}
+
+function formatReportMetric(metric: ReportMetric | undefined): string {
+  if (metric === undefined) return "—";
+  return formatMetricValue({
+    name: metric.name,
+    unit: metric.unit,
+    space: "source",
+    availability: metric.availability,
+    value: metric.value,
+    sample_count: metric.sample_count,
+  });
+}
+
+function frameLabel(overview: ReportContent["overview"]): string {
+  if (overview.source_width === null || overview.source_height === null) {
+    return "Unavailable";
+  }
+  return `${overview.source_width.toLocaleString()} × ${overview.source_height.toLocaleString()} px`;
 }
 
 function Fact({ label, value }: { label: string; value: React.ReactNode }) {

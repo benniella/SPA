@@ -176,14 +176,27 @@ triggered from an HTTP request; the worker owns execution.
 
 ### Reports
 
-| Method | Path                  | Status | Notes                        |
-| ------ | --------------------- | ------ | ---------------------------- |
-| POST   | '/api/v1/reports'      | 202    | Queued generation            |
-| GET    | '/api/v1/reports'      | 200    | '?organization_id='           |
-| GET    | '/api/v1/reports/{id}' | 200    | Poll for 'status: "ready"'    |
+| Method | Path                                   | Status | Notes                          |
+| ------ | -------------------------------------- | ------ | ------------------------------ |
+| POST   | '/api/v1/analysis-runs/{id}/reports'     | 202    | Queued generation; 'Location' header |
+| GET    | '/api/v1/reports'                        | 200    | '?organization_id='             |
+| GET    | '/api/v1/reports/{id}'                   | 200    | Poll for 'status: "ready"'      |
 
-Rendering a PDF with dozens of charts is the same problem as analysing video:
-asynchronous, with the same '202' + 'Location' contract.
+A report is a **snapshot** of one analysis run: its overview, per-track metrics,
+deterministic data observations and stated limitations, taken at generation time.
+It reads the run's persisted 'tracking_observations' and 'track_metrics' and
+computes nothing new. Measurements stay in source-video pixels — no physical unit
+is implied.
+
+A report can only be requested once a run has 'succeeded' or
+'partially_succeeded'; a run still processing is a '409'. A repeated request for
+the same run returns the report already covering it rather than creating a second
+snapshot; a failed report is retried in place. Generation runs through the same
+job pipeline as video analysis, so 'POST' returns '202' and the report body is
+only present once 'status' is '"ready"'.
+
+A downloadable document format is **not** implemented: 'GET /reports/{id}'
+returns structured JSON and there is no export control.
 
 ### Uploads (local storage only)
 
@@ -261,6 +274,6 @@ Also worth generating in Phase 1: an assertion in the backend test suite that
 | Tracking data endpoints               | Storage strategy not decided                |
 | Heatmap retrieval                      | Depends on tracking output                  |
 | Metric query and aggregation endpoints | Need real metrics to design against         |
-| Report download URL                    | Generation not implemented                  |
+| Report export (PDF or other document)  | Not implemented; reports are served as JSON  |
 | Video thumbnail URL                    | Depends on worker ingest                    |
 | Bulk / batch operations                | No measured need yet                        |

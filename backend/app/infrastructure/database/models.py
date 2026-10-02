@@ -57,12 +57,17 @@ class UserModel(Base, TimestampMixin):
     """A person who signs in to SPA.
 
     ' 'email' ' is stored lower-cased by the domain value object, so the unique
-    index is meaningful. No password, token or credential column exists yet:
-    the authentication mechanism is an open decision (see architecture risks),
-    and adding a half-chosen one now would constrain it unnecessarily.
+    index is meaningful. ' 'password_hash' ' holds an opaque hash produced by the
+    configured hasher; no plaintext credential is ever written here.
     """
 
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint(
+            "account_status IN ('pending_verification', 'active', 'suspended', 'deactivated')",
+            name="user_account_status_known",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = uuid_primary_key()
     # As with 'organizations.slug', this is a unique index rather than a separate
@@ -70,8 +75,27 @@ class UserModel(Base, TimestampMixin):
     email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True, index=True)
     display_name: Mapped[str] = mapped_column(String(200), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    account_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="pending_verification", server_default="active"
+    )
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    email_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    phone_number: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    phone_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    password_changed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     memberships: Mapped[list[OrganizationMembershipModel]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    sessions: Mapped[list[SessionModel]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
     )
@@ -699,9 +723,352 @@ class ReportModel(Base, TimestampMixin):
     team_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("teams.id", ondelete="SET NULL"), nullable=True
     )
+    # The run a run-scoped report describes. A column rather than a join table
+    # because a report is authored against one run; a multi-run scope has no
+    # meaning until a report actually aggregates several. Nullable so a
+    # match- or team-scoped report remains possible.
+    analysis_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("analysis_runs.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     content: Mapped[dict[str, object]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    # Which report definition produced 'content'. Bumping it makes an old report's
+    # shape unambiguous rather than silently reinterpreted.
+    definition_version: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="v1", server_default="v1"
     )
     storage_key: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class SessionModel(Base, TimestampMixin):
+    """A server-controlled authenticated session.
+
+    ' 'token_hash' ' is unique: the raw token exists only in the browser's cookie
+    and in the request that presented it, so a database read cannot be replayed
+    as a session. Revocation is a column write, which is what makes logout and
+    "revoke this device" enforceable by the server rather than by the client.
+    """
+
+    __tablename__ = "sessions"
+    __table_args__ = (
+        Index("ix_sessions_user_expires", "user_id", "expires_at"),
+        CheckConstraint(
+            "revoked_at IS NULL OR revoked_at >= created_at",
+            name="session_revoked_after_creation",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_primary_key()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # Network prefix only, truncated by the application before it is written.
+    ip_prefix: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # When the second factor was last satisfied on this session. Administrative
+    # authorization requires it; an ordinary session leaves it NULL.
+    mfa_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped[UserModel] = relationship(back_populates="sessions")
+
+
+class SecurityChallengeModel(Base, TimestampMixin):
+    """A single-use, expiring token challenge.
+
+    Covers email verification, an email change, password reset and account
+    recovery. ' 'token_hash' ' is unique so that two live challenges can never
+    share a token; ' 'consumed_at' ' records use, which is what makes a replayed
+    link fail even inside its validity window.
+    """
+
+    __tablename__ = "security_challenges"
+    __table_args__ = (
+        Index("ix_security_challenges_user_kind", "user_id", "kind"),
+        CheckConstraint(
+            "kind IN ('email_verification', 'email_change', 'password_reset', 'recovery')",
+            name="security_challenge_kind_known",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_primary_key()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    # The address being verified for an email change; the current address
+    # otherwise.
+    destination: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class OtpChallengeModel(Base, TimestampMixin):
+    """A one-time code delivered to a phone number or an email address.
+
+    Only the code's hash is stored. ' 'attempts' ' is a column rather than
+    in-process state so the limit survives a restart and is shared by every
+    process serving the same account.
+    """
+
+    __tablename__ = "otp_challenges"
+    __table_args__ = (
+        Index("ix_otp_challenges_user_purpose", "user_id", "purpose"),
+        CheckConstraint("attempts >= 0", name="otp_attempts_non_negative"),
+        CheckConstraint("max_attempts >= 1", name="otp_max_attempts_positive"),
+        CheckConstraint(
+            "purpose IN ('phone_verification', 'phone_removal', 'email_verification',"
+            " 'account_recovery', 'sensitive_action')",
+            name="otp_purpose_known",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_primary_key()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    purpose: Mapped[str] = mapped_column(String(32), nullable=False)
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    destination: Mapped[str] = mapped_column(String(320), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class SecurityEventModel(Base, TimestampMixin):
+    """An append-only record of a security-relevant event.
+
+    Deliberately not user-writable. The application exposes reads only: an actor
+    who could edit this table could erase the evidence of their own access, which
+    defeats the point of keeping it.
+    """
+
+    __tablename__ = "security_events"
+    __table_args__ = (
+        Index("ix_security_events_user_created", "user_id", "created_at"),
+        Index("ix_security_events_type_created", "event_type", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_primary_key()
+    # Nullable so an event about an address that does not exist (a failed sign-in
+    # for an unknown email) can still be recorded without inventing a user.
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    ip_prefix: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    event_metadata: Mapped[dict[str, object]] = mapped_column(
+        "metadata", JSONB, nullable=False, default=dict, server_default="{}"
+    )
+class PlatformAdminModel(Base, TimestampMixin):
+    """A user's platform-administration record.
+
+    Keyed by user, so an administrator signs in through the same session system as
+    everyone else and this table only adds platform authority. It is deliberately
+    not a column on 'users': an organization owner must not become an
+    administrator by any side effect.
+    """
+
+    __tablename__ = "platform_admins"
+    __table_args__ = (
+        UniqueConstraint("user_id", name="uq_platform_admins_user_id"),
+        CheckConstraint(
+            "status IN ('invited', 'active', 'suspended', 'revoked')",
+            name="platform_admin_status",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_primary_key()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="invited")
+    mfa_enrolled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    suspended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AdminRoleModel(Base, TimestampMixin):
+    """The catalogue of administrative roles.
+
+    Seeded rather than free-form, so a role name in a grant is always a role the
+    platform knows. Roles carry no behaviour of their own: what a role can do is
+    entirely determined by the privileges mapped to it.
+    """
+
+    __tablename__ = "admin_roles"
+
+    id: Mapped[uuid.UUID] = uuid_primary_key()
+    name: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    description: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+
+
+class AdminPrivilegeModel(Base, TimestampMixin):
+    """The catalogue of platform privileges."""
+
+    __tablename__ = "admin_privileges"
+
+    id: Mapped[uuid.UUID] = uuid_primary_key()
+    name: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    description: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+
+
+class AdminRolePrivilegeModel(Base):
+    """Which privileges a role grants."""
+
+    __tablename__ = "admin_role_privileges"
+    __table_args__ = (
+        UniqueConstraint("role_id", "privilege_id", name="uq_admin_role_privileges_pair"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_primary_key()
+    role_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("admin_roles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    privilege_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("admin_privileges.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+
+class AdminRoleAssignmentModel(Base, TimestampMixin):
+    """A role held by an administrator."""
+
+    __tablename__ = "admin_role_assignments"
+    __table_args__ = (
+        UniqueConstraint("admin_id", "role_id", name="uq_admin_role_assignments_pair"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_primary_key()
+    admin_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("platform_admins.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    role_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("admin_roles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    assigned_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+
+class AdminPrivilegeGrantModel(Base, TimestampMixin):
+    """A privilege granted directly to an administrator.
+
+    Direct grants exist explicitly rather than being expressed as a synthetic role
+    name: a grant that is not a role is auditably a grant, and revoking it cannot
+    be confused with removing a job title.
+    """
+
+    __tablename__ = "admin_privilege_grants"
+    __table_args__ = (
+        UniqueConstraint("admin_id", "privilege_id", name="uq_admin_privilege_grants_pair"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_primary_key()
+    admin_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("platform_admins.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    privilege_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("admin_privileges.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    granted_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+
+class AdminInvitationModel(Base, TimestampMixin):
+    """A single-use, expiring offer of administrative access."""
+
+    __tablename__ = "admin_invitations"
+    __table_args__ = (
+        Index("ix_admin_invitations_email_created", "email", "created_at"),
+        Index("ix_admin_invitations_token_hash", "token_hash", unique=True),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_primary_key()
+    email: Mapped[str] = mapped_column(String(320), nullable=False, index=True)
+    role_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("admin_roles.id", ondelete="RESTRICT"), nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    invited_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AdminMfaCredentialModel(Base, TimestampMixin):
+    """An administrator's TOTP enrolment.
+
+    The shared secret is stored encrypted with the application secret rather than
+    in plaintext, so a database read alone does not yield a working second factor.
+    """
+
+    __tablename__ = "admin_mfa_credentials"
+    __table_args__ = (UniqueConstraint("admin_id", name="uq_admin_mfa_credentials_admin_id"),)
+
+    id: Mapped[uuid.UUID] = uuid_primary_key()
+    admin_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("platform_admins.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    secret_encrypted: Mapped[str] = mapped_column(String(512), nullable=False)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AdminRecoveryCodeModel(Base, TimestampMixin):
+    """A single-use administrator recovery code.
+
+    Only the hash is stored: a database read must not yield usable recovery codes.
+    Regenerating the set deletes the previous rows, which is what invalidates them.
+    """
+
+    __tablename__ = "admin_recovery_codes"
+    __table_args__ = (Index("ix_admin_recovery_codes_admin", "admin_id"),)
+
+    id: Mapped[uuid.UUID] = uuid_primary_key()
+    admin_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("platform_admins.id", ondelete="CASCADE"), nullable=False
+    )
+    code_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AdminMfaChallengeModel(Base, TimestampMixin):
+    """A short-lived MFA step-up challenge bound to a session."""
+
+    __tablename__ = "admin_mfa_challenges"
+    __table_args__ = (
+        Index("ix_admin_mfa_challenges_admin", "admin_id"),
+        Index("ix_admin_mfa_challenges_session", "session_id"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_primary_key()
+    admin_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("platform_admins.id", ondelete="CASCADE"), nullable=False
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    satisfied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=5)

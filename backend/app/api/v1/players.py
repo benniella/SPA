@@ -5,10 +5,11 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.api.dependencies import UnitOfWorkDep
+from app.api.dependencies import CurrentUserDep, UnitOfWorkDep
 from app.api.v1.params import Pagination, pagination
 from app.api.v1.presenters import player_payload
 from app.application.use_cases import players as use_cases
+from app.application.use_cases.organizations import require_organization_member
 from app.domain.shared import OrganizationId, PlayerId, TeamId
 from app.schemas.common import ErrorResponse
 from app.schemas.players import PlayerCreate, PlayerList, PlayerRead
@@ -23,7 +24,14 @@ router = APIRouter()
     summary="Create a player",
     responses={404: {"model": ErrorResponse, "description": "Organization not found."}},
 )
-async def create_player(payload: PlayerCreate, uow: UnitOfWorkDep) -> PlayerRead:
+async def create_player(
+    payload: PlayerCreate, user: CurrentUserDep, uow: UnitOfWorkDep
+) -> PlayerRead:
+    await require_organization_member(
+        uow,
+        organization_id=OrganizationId(payload.organization_id),
+        user_id=user.id,
+    )
     player = await use_cases.create_player(
         uow,
         organization_id=OrganizationId(payload.organization_id),
@@ -36,6 +44,7 @@ async def create_player(payload: PlayerCreate, uow: UnitOfWorkDep) -> PlayerRead
 
 @router.get("", response_model=PlayerList, summary="List players")
 async def list_players(
+    user: CurrentUserDep,
     uow: UnitOfWorkDep,
     organization_id: uuid.UUID = Query(description="Owning organization."),
     team_id: uuid.UUID | None = Query(
@@ -51,6 +60,9 @@ async def list_players(
     ),
     page: Pagination = Depends(pagination),
 ) -> PlayerList:
+    await require_organization_member(
+        uow, organization_id=OrganizationId(organization_id), user_id=user.id
+    )
     players = await use_cases.list_players(
         uow,
         organization_id=OrganizationId(organization_id),
@@ -73,9 +85,13 @@ async def list_players(
 )
 async def get_player(
     player_id: uuid.UUID,
+    user: CurrentUserDep,
     uow: UnitOfWorkDep,
     organization_id: uuid.UUID = Query(description="Owning organization."),
 ) -> PlayerRead:
+    await require_organization_member(
+        uow, organization_id=OrganizationId(organization_id), user_id=user.id
+    )
     player = await use_cases.get_player(
         uow,
         organization_id=OrganizationId(organization_id),

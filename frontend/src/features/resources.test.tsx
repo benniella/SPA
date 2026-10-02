@@ -5,8 +5,7 @@ import { SessionProvider } from "@/features/auth/session";
 import { MatchList } from "@/features/matches";
 import { PlayerList } from "@/features/players";
 import { TeamList } from "@/features/teams";
-import type { Organization } from "@/types/api";
-
+import type { AuthenticatedUser, Organization } from "@/types/api";
 const ORGANIZATION: Organization = {
   id: "org-1",
   name: "Riverside FC",
@@ -14,12 +13,27 @@ const ORGANIZATION: Organization = {
   created_at: "2025-01-01T00:00:00Z",
   updated_at: "2025-01-01T00:00:00Z",
 };
-
+const ACCOUNT: AuthenticatedUser = {
+  id: "user-1",
+  email: "coach@club.example",
+  display_name: "Coach",
+  account_status: "active",
+  email_verified: true,
+  phone_verified: false,
+  phone_number: null,
+  created_at: "2025-01-01T00:00:00Z",
+  last_login_at: null,
+  organizations: [
+    { id: ORGANIZATION.id, name: ORGANIZATION.name, slug: ORGANIZATION.slug, role: "owner" },
+  ],
+};
 function stubApi(routes: Record<string, unknown>) {
+  /* The session provider resolves '/auth/me' on mount, so every page under test
+     needs that route whether or not the test is about authentication. */
+  const allRoutes: Record<string, unknown> = { "/auth/me": ACCOUNT, ...routes };
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const path = new URL(String(input)).pathname;
-
-    for (const [route, payload] of Object.entries(routes)) {
+    for (const [route, payload] of Object.entries(allRoutes)) {
       if (path === `/api/v1${route}`) {
         return {
           ok: true,
@@ -45,8 +59,7 @@ function stubApi(routes: Record<string, unknown>) {
 }
 
 function withSession(children: React.ReactNode) {
-  window.localStorage.setItem("spa.dev.workspace", ORGANIZATION.id);
-
+  window.localStorage.setItem("spa.workspace", ORGANIZATION.id);
   return render(<SessionProvider>{children}</SessionProvider>);
 }
 

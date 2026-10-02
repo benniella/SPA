@@ -47,6 +47,7 @@ class FakeVideoStorage:
     def __init__(self) -> None:
         self.objects: dict[str, int] = {}
         self.content_types: dict[str, str] = {}
+        self.payloads: dict[str, bytes] = {}
         self.presigned: list[str] = []
         self.deleted: list[str] = []
 
@@ -88,7 +89,12 @@ class FakeVideoStorage:
         self.deleted.append(key)
 
     async def open(self, key: str) -> bytes:
-        return b""
+        return self.payloads.get(key, b"")
+
+    async def write_bytes(self, key: str, payload: bytes) -> None:
+        self.objects[key] = len(payload)
+        self.payloads[key] = payload
+        self.content_types.setdefault(key, "application/octet-stream")
 
 
 class RecordingDispatcher:

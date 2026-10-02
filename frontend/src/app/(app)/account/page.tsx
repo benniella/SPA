@@ -1,7 +1,15 @@
 import type { Metadata } from "next";
-
 import { AppPageBody, AppPageHeader } from "@/components/app/page-header";
 import { AccountPanel } from "@/features/auth/components/account-panel";
+import {
+  EmailSection,
+  PasswordSection,
+  PhoneSection,
+} from "@/features/auth/components/account-sections";
+import {
+  SecurityActivitySection,
+  SessionsSection,
+} from "@/features/auth/components/account-security-sections";
 
 export const metadata: Metadata = {
   title: "Account",
@@ -14,10 +22,17 @@ export default function AccountPage() {
     <>
       <AppPageHeader
         title="Account"
-        description="Your identity, your session, and what sign-in still has to decide."
+        description="Your identity, your credentials, your sessions and your security activity."
       />
       <AppPageBody>
-        <AccountPanel />
+        <div className="stack stack-8">
+          <AccountPanel />
+          <EmailSection />
+          <PhoneSection />
+          <PasswordSection />
+          <SessionsSection />
+          <SecurityActivitySection />
+        </div>
       </AppPageBody>
     </>
   );

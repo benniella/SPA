@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 
+import { CookieConsent } from "@/components/consent/cookie-consent";
+import { ScrollReset } from "@/components/navigation/scroll-reset";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { BRAND_ICONS } from "@/lib/brand";
 import { fontVariables } from "@/lib/fonts";
@@ -48,7 +50,11 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ScrollReset />
+        <ThemeProvider>
+          {children}
+          <CookieConsent />
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -73,6 +73,9 @@ class FakeStorage:
     async def open(self, key: str) -> bytes:
         return b""
 
+    async def write_bytes(self, key: str, payload: bytes) -> None:
+        return None
+
     def build_key(self, organization_id: str, **kwargs: object) -> str:
         return "key"
 

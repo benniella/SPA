@@ -3,107 +3,88 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
-import { listOrganizations } from "@/services/organizations";
-import type { Organization } from "@/types/api";
+import { currentUser, logout as logoutRequest } from "@/services/auth";
+import type { AuthenticatedUser, AuthenticatedUserOrganization } from "@/types/api";
 
-const WORKSPACE_KEY = "spa.dev.workspace";
+const WORKSPACE_KEY = "spa.workspace";
 
 export type SessionStatus = "loading" | "authenticated" | "unauthenticated";
 
 export interface SessionValue {
   readonly status: SessionStatus;
-  readonly organization: Organization | null;
-  readonly organizations: readonly Organization[];
-  readonly organizationsStatus: "idle" | "loading" | "error";
-  readonly selectWorkspace: (organization: Organization) => void;
-  readonly signOut: () => void;
-  readonly refreshOrganizations: () => void;
+  readonly user: AuthenticatedUser | null;
+  readonly organization: AuthenticatedUserOrganization | null;
+  readonly organizations: readonly AuthenticatedUserOrganization[];
+  readonly selectWorkspace: (organization: AuthenticatedUserOrganization) => void;
+  readonly signOut: () => Promise<void>;
+  readonly refresh: () => void;
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
 
-function readStoredId(): string | null {
+function readStoredWorkspace(): string | null {
   if (typeof window === "undefined") return null;
   try {
     return window.localStorage.getItem(WORKSPACE_KEY);
   } catch {
     // A browser with storage disabled (private mode, hardened settings) throws on
-    // access rather than returning null. Treating that as "no session" is correct
-    // and keeps the application usable.
+    // access rather than returning null. Treating that as "no selection" is
+    // correct and keeps the application usable.
     return null;
   }
 }
 
-function writeStoredId(id: string | null): void {
+function writeStoredWorkspace(id: string | null): void {
   if (typeof window === "undefined") return;
   try {
     if (id === null) window.localStorage.removeItem(WORKSPACE_KEY);
     else window.localStorage.setItem(WORKSPACE_KEY, id);
   } catch {
-    // Ignored deliberately: a failed write degrades to a session that does not
-    // survive a reload, which is preferable to a crash on the sign-in page.
+    // Ignored deliberately: a failed write degrades to a selection that does not
+    // survive a reload, which is preferable to a crash on the account page.
   }
 }
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<SessionStatus>("loading");
-  const [organizations, setOrganizations] = useState<readonly Organization[]>([]);
-  const [organizationsStatus, setOrganizationsStatus] = useState<"idle" | "loading" | "error">(
-    "loading",
-  );
-  const [organization, setOrganization] = useState<Organization | null>(null);
-  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [user, setUser] = useState<AuthenticatedUser | null>(null);
+  const [organization, setOrganization] = useState<AuthenticatedUserOrganization | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
-  const refreshOrganizations = useCallback(() => setLoadAttempt((value) => value + 1), []);
+  const refresh = useCallback(() => setAttempt((value) => value + 1), []);
 
-  // Resolve the session once on mount: read the stored selection, then confirm it
-  // against the API. Confirming matters — a stored id belonging to a workspace
-  // that no longer exists would otherwise produce a page of 404s that look like
-  // bugs.
-  //
-  // 'ignore' rather than only an 'AbortController': aborting on cleanup is correct
-  // for a single-mount component, but this effect re-runs under two legitimate
-  // circumstances — React strict mode's development double-invoke, and an explicit
-  // 'refreshOrganizations()' — and in both an abort would cancel a request the re-run
-  // then has to repeat. Guarding with a flag stops the *write* without cancelling the
-  // read, so a strict-mode remount still resolves the session.
-  //
-  // The loading transitions are deliberately *not* synchronous 'setState' calls at the
-  // top of the effect: React 19's lint rules flag a setState that runs unconditionally
-  // before an await, because it makes the effect's first paint depend on a state write
-  // rather than on the render that scheduled it. They are set from the async body
-  // instead, which is where the transition actually belongs.
+  /* The session is whatever '/auth/me' says it is. Nothing is inferred from
+     browser storage: the cookie is HttpOnly, so the API is the only party that
+     can answer whether the caller is still signed in, and a revoked or expired
+     session resolves to 'unauthenticated' on the next load. */
   useEffect(() => {
     let ignore = false;
 
     async function resolve() {
-      setOrganizationsStatus("loading");
-
-      let page: { items: Organization[] };
       try {
-        page = await listOrganizations({ limit: 50 });
+        const authenticated = await currentUser();
+        if (ignore) return;
+
+        setUser(authenticated);
+
+        const stored = readStoredWorkspace();
+        const matched =
+          authenticated.organizations.find((item) => item.id === stored) ??
+          authenticated.organizations[0] ??
+          null;
+
+        if (matched && matched.id !== stored) writeStoredWorkspace(matched.id);
+        setOrganization(matched);
+        setStatus("authenticated");
       } catch {
         if (ignore) return;
-        setOrganizationsStatus("error");
-        // An unreachable API is indistinguishable from "not signed in" for routing
-        // purposes, and showing the application would produce a shell full of
-        // errors. The sign-in page explains the situation instead.
+        // A 401 is the ordinary "not signed in" answer, and an unreachable API is
+        // indistinguishable from it for routing purposes. Either way the app must
+        // not render a shell it cannot populate.
+        setUser(null);
+        setOrganization(null);
         setStatus("unauthenticated");
-        return;
       }
-
-      if (ignore) return;
-
-      setOrganizations(page.items);
-      setOrganizationsStatus("idle");
-
-      const storedId = readStoredId();
-      const matched = page.items.find((item) => item.id === storedId) ?? null;
-
-      if (storedId && !matched) writeStoredId(null);
-
-      setOrganization(matched);
-      setStatus(matched ? "authenticated" : "unauthenticated");
     }
 
     void resolve();
@@ -111,39 +92,39 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return () => {
       ignore = true;
     };
-  }, [loadAttempt]);
+  }, [attempt]);
 
-  const selectWorkspace = useCallback((next: Organization) => {
-    writeStoredId(next.id);
+  const selectWorkspace = useCallback((next: AuthenticatedUserOrganization) => {
+    writeStoredWorkspace(next.id);
     setOrganization(next);
-    setStatus("authenticated");
   }, []);
 
-  const signOut = useCallback(() => {
-    writeStoredId(null);
+  const signOut = useCallback(async () => {
+    try {
+      await logoutRequest();
+    } catch {
+      // The local session is cleared either way: a sign-out that could not reach
+      // the API must not leave the user apparently signed in.
+    }
+    writeStoredWorkspace(null);
+    setUser(null);
     setOrganization(null);
     setStatus("unauthenticated");
   }, []);
 
+  const organizations = useMemo(() => user?.organizations ?? [], [user]);
+
   const value = useMemo<SessionValue>(
     () => ({
       status,
+      user,
       organization,
       organizations,
-      organizationsStatus,
       selectWorkspace,
       signOut,
-      refreshOrganizations,
+      refresh,
     }),
-    [
-      status,
-      organization,
-      organizations,
-      organizationsStatus,
-      selectWorkspace,
-      signOut,
-      refreshOrganizations,
-    ],
+    [status, user, organization, organizations, selectWorkspace, signOut, refresh],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

@@ -20,7 +20,7 @@ from app.schemas.organizations import (
     OrganizationRead,
 )
 from app.schemas.players import PlayerCreate, PlayerList, PlayerRead
-from app.schemas.reports import ReportCreate, ReportList, ReportRead
+from app.schemas.reports import ReportDetailRead, ReportExportRead, ReportList, ReportRead
 from app.schemas.teams import TeamCreate, TeamList, TeamRead
 from app.schemas.users import UserCreate, UserList, UserRead
 from app.schemas.videos import (
@@ -49,7 +49,8 @@ __all__ = [
     "PlayerCreate",
     "PlayerList",
     "PlayerRead",
-    "ReportCreate",
+    "ReportDetailRead",
+    "ReportExportRead",
     "ReportList",
     "ReportRead",
     "TeamCreate",

@@ -9,14 +9,25 @@ from __future__ import annotations
 from types import TracebackType
 from typing import Protocol, Self, runtime_checkable
 
+from app.application.ports.admin import (
+    AdminInvitationRepository,
+    AdminMfaRepository,
+    AdminPrivilegeRepository,
+    AdminRepository,
+    AdminRoleRepository,
+)
 from app.application.ports.repositories import (
     AnalysisRunRepository,
     MatchRepository,
     OrganizationRepository,
+    OtpChallengeRepository,
     PerformanceMetricRepository,
     PlayerRepository,
     ProcessingJobRepository,
     ReportRepository,
+    SecurityChallengeRepository,
+    SecurityEventRepository,
+    SessionRepository,
     TeamRepository,
     TrackingDatasetRepository,
     TrackMetricRepository,
@@ -32,6 +43,15 @@ class UnitOfWork(Protocol):
 
     organizations: OrganizationRepository
     users: UserRepository
+    admins: AdminRepository
+    admin_roles: AdminRoleRepository
+    admin_privileges: AdminPrivilegeRepository
+    admin_invitations: AdminInvitationRepository
+    admin_mfa: AdminMfaRepository
+    sessions: SessionRepository
+    challenges: SecurityChallengeRepository
+    otp_challenges: OtpChallengeRepository
+    security_events: SecurityEventRepository
     teams: TeamRepository
     players: PlayerRepository
     matches: MatchRepository

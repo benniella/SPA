@@ -10,20 +10,13 @@ import { PlannedState } from "@/components/ui/states";
 import { slugify } from "@/features/teams";
 import { useSession } from "@/features/auth/session";
 import { useApiMutation } from "@/hooks/use-api-mutation";
-import { formatDateTime } from "@/lib/format";
 import { createOrganization } from "@/services/organizations";
 import type { Organization } from "@/types/api";
 
 export function WorkspaceSettings() {
-  const {
-    organization,
-    organizations,
-    organizationsStatus,
-    selectWorkspace,
-    refreshOrganizations,
-  } = useSession();
+  const { status, organization, organizations, selectWorkspace, refresh } = useSession();
 
-  if (organizationsStatus === "loading") {
+  if (status === "loading") {
     return <LoadingState label="Loading workspaces" rows={3} />;
   }
 
@@ -39,7 +32,7 @@ export function WorkspaceSettings() {
             <dl className="fact-list">
               <Fact label="Name" value={organization.name} />
               <Fact label="Short name" value={organization.slug} />
-              <Fact label="Created" value={formatDateTime(organization.created_at)} />
+              <Fact label="Your role" value={organization.role} />
             </dl>
           </Card>
         ) : (
@@ -87,8 +80,13 @@ export function WorkspaceSettings() {
 
         <CreateWorkspaceForm
           onCreated={(created) => {
-            refreshOrganizations();
-            selectWorkspace(created);
+            refresh();
+            selectWorkspace({
+              id: created.id,
+              name: created.name,
+              slug: created.slug,
+              role: "owner",
+            });
           }}
         />
       </section>

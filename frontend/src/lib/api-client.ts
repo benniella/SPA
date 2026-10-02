@@ -13,6 +13,29 @@ export interface Paginated<T> {
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
+const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+function readCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const prefix = `${name}=`;
+  for (const part of document.cookie.split(";")) {
+    const entry = part.trim();
+    if (entry.startsWith(prefix)) {
+      return decodeURIComponent(entry.slice(prefix.length));
+    }
+  }
+  return null;
+}
+
+/* The session cookie is HttpOnly, so the CSRF cookie is the only one the browser
+   can read. Echoing it into a header is what lets the API tell a same-site
+   request from one an attacker's page caused. */
+async function csrfHeaders(method: string): Promise<Record<string, string>> {
+  if (!MUTATING_METHODS.has(method.toUpperCase())) return {};
+  const token = readCookie("spa_csrf");
+  return token ? { "X-CSRF-Token": token } : {};
+}
+
 async function request<T>(
   method: string,
   path: string,
@@ -41,10 +64,11 @@ async function request<T>(
       headers: {
         Accept: "application/json",
         ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+        ...(await csrfHeaders(method)),
         ...options.headers,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
-      credentials: "omit",
+      credentials: "include",
     });
   } catch (cause) {
     if (cause instanceof DOMException && cause.name === "AbortError") {

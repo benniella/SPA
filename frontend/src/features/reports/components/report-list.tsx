@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { ButtonLink } from "@/components/ui/button";
 import { DataCell, DataRow, DataTable } from "@/components/ui/data-table";
 import { ErrorState } from "@/components/ui/error-state";
@@ -52,24 +54,16 @@ export function ReportList() {
 
   if (reports.length === 0) {
     return (
-      <div className="stack stack-6">
-        <EmptyState
-          icon="analyse"
-          title="No reports yet"
-          description="A report is a snapshot of analysis output, generated from an analysis run. Reports arrive after the analysis pipeline does — a report of nothing would be an empty document."
-          actions={
-            <ButtonLink href="/analysis" variant="technical" size="md">
-                Go to analysis
-            </ButtonLink>
-          }
-        />
-
-        <PlannedState
-          title="Documents are not rendered yet"
-          description="A report records what it covers — a match, a team or a set of runs — and reports its generation status, and the three views below are the sections a generated report is built from. The step that turns metrics into a document is not implemented, so no report has content to open."
-          note="Not available yet. This needs reporting."
-        />
-      </div>
+      <EmptyState
+        icon="analyse"
+        title="No reports yet"
+        description="A report is a snapshot of an analysis run's metrics and observations, generated from the run itself. Open a completed analysis run to generate one."
+        actions={
+          <ButtonLink href="/analysis" variant="technical" size="md">
+            Go to analysis
+          </ButtonLink>
+        }
+      />
     );
   }
 
@@ -80,7 +74,7 @@ export function ReportList() {
         columns={[
           { id: "title", header: "Report" },
           { id: "status", header: "Status" },
-          { id: "scope", header: "Scope", secondary: true },
+          { id: "analysis", header: "Analysis run", secondary: true },
           { id: "generated", header: "Generated", secondary: true },
           { id: "created", header: "Created", secondary: true },
         ]}
@@ -88,16 +82,16 @@ export function ReportList() {
         {reports.map((report) => (
           <DataRow key={report.id}>
             <DataCell primary>
-              <a className="app-row-link" href={`/reports/${encodeURIComponent(report.id)}`}>
+              <Link className="app-row-link" href={`/reports/${encodeURIComponent(report.id)}`}>
                 {report.title}
-              </a>
+              </Link>
             </DataCell>
             <DataCell>
               <span className={`badge badge-${REPORT_STATUS_TONE[report.status]}`}>
                 {REPORT_STATUS_LABELS[report.status]}
               </span>
             </DataCell>
-            <DataCell secondary>{scopeLabel(report)}</DataCell>
+            <DataCell secondary>{analysisLabel(report)}</DataCell>
             <DataCell secondary>{formatDateTime(report.generated_at)}</DataCell>
             <DataCell secondary>{formatDateTime(report.created_at)}</DataCell>
           </DataRow>
@@ -111,7 +105,21 @@ export function ReportList() {
   );
 }
 
-function scopeLabel(report: { match_id: string | null; team_id: string | null }): string {
+function analysisLabel(report: {
+  analysis_run_id: string | null;
+  match_id: string | null;
+  team_id: string | null;
+}): React.ReactNode {
+  if (report.analysis_run_id) {
+    return (
+      <Link
+        className="app-row-link"
+        href={`/analysis/${encodeURIComponent(report.analysis_run_id)}`}
+      >
+        Run {report.analysis_run_id.slice(0, 8)}
+      </Link>
+    );
+  }
   const parts: string[] = [];
   if (report.match_id) parts.push("Match");
   if (report.team_id) parts.push("Team");

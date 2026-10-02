@@ -12,9 +12,13 @@ export type IconName =
   | "understand"
   | "arrow-right"
   | "arrow-down"
+  | "chevron-up"
+  | "chevron-down"
   | "user"
   | "menu"
   | "close"
+  | "eye"
+  | "eye-off"
   | "play"
   | "check";
 
