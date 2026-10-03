@@ -25,6 +25,7 @@ provisions and migrates that database for you.
 from __future__ import annotations
 
 import os
+import uuid
 from collections.abc import AsyncIterator, Iterator
 
 import pytest
@@ -100,7 +101,7 @@ async def client(app: FastAPI) -> AsyncIterator[AsyncClient]:
 
 @pytest.fixture
 async def clean_database() -> AsyncIterator[None]:
-    """Truncate every table before an integration test runs.
+    """Truncate every table before an integration test runs, then re-seed the catalogue.
 
     Integration tests share one PostgreSQL database because starting a fresh one
     per test is far slower than truncating. Without this, tests pass or fail
@@ -110,10 +111,21 @@ async def clean_database() -> AsyncIterator[None]:
     ' 'TRUNCATE ... CASCADE' ' is used rather than ' 'DELETE' ' so that sequence and
     identity state is reset too, and one statement clears the whole dependency
     graph.
+
+    The role and privilege catalogue is re-seeded after truncation because it is
+    data the product ships rather than data a test creates. A module that
+    truncated it and did not re-seed left the next module with an empty catalogue,
+    where inserting a role assignment silently matched no rows and an
+    administrator appeared to hold no privileges.
     """
     from sqlalchemy import text
 
     from app.core.config import get_settings
+    from app.domain.admin.catalogue import (
+        PRIVILEGE_DESCRIPTIONS,
+        ROLE_DESCRIPTIONS,
+        ROLE_PRIVILEGES,
+    )
     from app.infrastructure.database import load_models
     from app.infrastructure.database.base import Base
     from app.infrastructure.database.engine import get_session_factory, session_scope
@@ -125,6 +137,41 @@ async def clean_database() -> AsyncIterator[None]:
     session_factory = get_session_factory(settings)
     async with session_scope(session_factory) as session:
         await session.execute(text(f"TRUNCATE {tables} CASCADE"))
+        await session.commit()
+
+    async with session_scope(session_factory) as session:
+        privilege_ids: dict[str, object] = {}
+        for name in PRIVILEGE_DESCRIPTIONS:
+            privilege_id = uuid.uuid4()
+            privilege_ids[name] = privilege_id
+            await session.execute(
+                text(
+                    "INSERT INTO admin_privileges (id, name, description) "
+                    "VALUES (:id, :name, :description)"
+                ),
+                {"id": privilege_id, "name": name, "description": PRIVILEGE_DESCRIPTIONS[name]},
+            )
+        for role_name in ROLE_DESCRIPTIONS:
+            role_id = uuid.uuid4()
+            await session.execute(
+                text(
+                    "INSERT INTO admin_roles (id, name, description) "
+                    "VALUES (:id, :name, :description)"
+                ),
+                {"id": role_id, "name": role_name, "description": ROLE_DESCRIPTIONS[role_name]},
+            )
+            for privilege_name in ROLE_PRIVILEGES[role_name]:
+                await session.execute(
+                    text(
+                        "INSERT INTO admin_role_privileges (id, role_id, privilege_id) "
+                        "VALUES (:id, :role_id, :privilege_id)"
+                    ),
+                    {
+                        "id": uuid.uuid4(),
+                        "role_id": role_id,
+                        "privilege_id": privilege_ids[privilege_name],
+                    },
+                )
         await session.commit()
 
     yield

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from typing import Annotated
 
-from app.api.admin_dependencies import AdminDep
+from fastapi import APIRouter, Depends, Query, Request
+
+from app.api.admin_dependencies import AdminDep, require_privilege
 from app.api.dependencies import (
     CurrentUserDep,
     EmailSenderDep,
@@ -10,17 +12,60 @@ from app.api.dependencies import (
     SettingsDep,
     UnitOfWorkDep,
 )
+from app.api.v1.presenters import invitation_payload
+from app.application.admin_authz import AdminContext
 from app.application.ports.security import RateLimiter
 from app.application.use_cases import admin_invitations
 from app.core.errors import RateLimitedError
-from app.schemas.admin import InvitationAccepted, InvitationCreate, InvitationToken
-from app.schemas.common import ErrorResponse
+from app.domain.admin.entities import AdminPrivilege
+from app.schemas.admin import (
+    InvitationAccepted,
+    InvitationCreate,
+    InvitationList,
+    InvitationRead,
+    InvitationToken,
+)
+from app.schemas.common import ErrorResponse, PageMeta
 
 router = APIRouter()
 
 # The resend cooldown the application layer deliberately leaves to the API.
 RESEND_COOLDOWN_SECONDS = 300
 INVITATION_RATE_LIMIT = (20, 3600)
+
+ReadInvitations = require_privilege(AdminPrivilege.ADMINS_READ)
+
+
+@router.get(
+    "/invitations",
+    response_model=InvitationList,
+    summary="List platform administrator invitations",
+)
+async def list_invitations(
+    admin: Annotated[AdminContext, Depends(ReadInvitations)],
+    uow: UnitOfWorkDep,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    status: str | None = Query(default=None, max_length=32),
+    email: str | None = Query(default=None, max_length=320),
+) -> InvitationList:
+    async with uow:
+        summaries = await admin_invitations.list_invitations(
+            admin,
+            invitations=uow.admin_invitations,
+            limit=limit,
+            offset=offset,
+            status=status,
+            email=email,
+        )
+        total = await admin_invitations.count_invitations(
+            admin, invitations=uow.admin_invitations, status=status, email=email
+        )
+        await uow.commit()
+    return InvitationList(
+        items=[InvitationRead.model_validate(invitation_payload(s)) for s in summaries],
+        meta=PageMeta(limit=limit, offset=offset, count=total),
+    )
 
 
 @router.post(

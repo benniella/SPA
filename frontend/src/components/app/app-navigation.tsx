@@ -11,8 +11,6 @@ import { Icon } from "@/components/ui/icon";
 import { APP_NAV_ITEMS, APP_SECONDARY_ITEMS } from "@/data/app-navigation";
 import type { AppNavItem } from "@/data/app-navigation";
 
-/** Whether 'href' is the active route. Exact match for '/dashboard', prefix match
- * for a resource section, so '/teams/abc' keeps "Teams" marked. */
 function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
@@ -57,9 +55,6 @@ export function AppSidebar() {
         aria-expanded={!collapsed}
         aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
       >
-        {/* Three stripes with the last one short: the rail's own mark, so collapsing
-            reads as changing the rail rather than as navigating away from it. No
-            rotation — a directional arrow pointed the wrong way when collapsed. */}
         <span className="app-sidebar-collapse-icon" aria-hidden="true">
           <Icon name="menu" size={16} />
         </span>
@@ -84,8 +79,6 @@ function SidebarLink({
       className="app-nav-link"
       data-active={active ? "true" : "false"}
       aria-current={active ? "page" : undefined}
-      // The label is removed visually when collapsed, so the accessible name has to
-      // survive that — the icon carries none of its own.
       {...(collapsed ? { "aria-label": item.label } : {})}
     >
       <Icon name={item.icon} size={16} />
@@ -95,8 +88,6 @@ function SidebarLink({
     </Link>
   );
 }
-
-/* Mobile bar */
 
 export function AppMobileNav() {
   const pathname = usePathname();
@@ -121,8 +112,6 @@ export function AppMobileNav() {
           );
         })}
 
-        {/* The two destinations that do not fit the bar live behind a sheet, so
-            nothing in the product is unreachable on a phone. */}
         <li>
           <MoreSheet />
         </li>

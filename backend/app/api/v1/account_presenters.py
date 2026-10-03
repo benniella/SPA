@@ -34,12 +34,6 @@ EVENT_DESCRIPTIONS = {
 
 
 def describe_user_agent(value: str | None) -> str:
-    """A short, human-readable description of a session's client.
-
-    Deliberately coarse. A precise fingerprint would be presented as an identity
-    guarantee it is not, and the useful question the account page answers is
-    "roughly which device and browser is this", not "which exact build".
-    """
     if not value:
         return "Unknown device"
     lowered = value.lower()
@@ -98,7 +92,6 @@ def user_payload(user: User, organizations: list[tuple[Organization, str]]) -> d
 
 
 async def resolve_memberships(uow: UnitOfWork, user_id: UserId) -> list[tuple[Organization, str]]:
-    """Pair each of the account's memberships with the organization it names."""
     resolved: list[tuple[Organization, str]] = []
     for membership in await uow.organizations.list_for_user(user_id):
         organization = await uow.organizations.get(membership.organization_id)

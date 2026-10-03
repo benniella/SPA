@@ -44,6 +44,23 @@ class InvitationCreate(ApiModel):
     role: str = Field(min_length=1, max_length=64)
 
 
+class InvitationRead(ApiModel):
+    id: uuid.UUID
+    email: str
+    role: str
+    status: str
+    invited_by: uuid.UUID | None
+    expires_at: datetime
+    accepted_at: datetime | None
+    revoked_at: datetime | None
+    created_at: datetime
+
+
+class InvitationList(ApiModel):
+    items: list[InvitationRead]
+    meta: PageMeta
+
+
 class InvitationToken(ApiModel):
     token: str = Field(min_length=16, max_length=512, description="From the invitation email.")
 

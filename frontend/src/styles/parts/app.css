@@ -97,7 +97,6 @@
   color: var(--color-foreground);
 }
 
-/* Active state: accent rule, weight change and colour change together. */
 .app-nav-link[data-active="true"] {
   background-color: var(--color-surface);
   color: var(--color-foreground);
@@ -148,7 +147,6 @@
   transition: color var(--duration-fast) var(--ease-standard);
 }
 
-/* The mark is the icon on its own: no tile, border or background behind it. */
 .app-sidebar-collapse-icon {
   display: inline-flex;
   align-items: center;
@@ -159,7 +157,6 @@
   color: var(--color-foreground);
 }
 
-/* The collapsed rail keeps the icons and drops the labels. */
 .app-sidebar[data-collapsed="true"] .app-nav-label,
 .app-sidebar[data-collapsed="true"] .app-sidebar-collapse-label {
   display: none;
@@ -292,7 +289,6 @@
   color: var(--color-foreground);
 }
 
-/* Responsive rail. */
 @media (min-width: 64rem) {
   .app-shell {
     grid-template-columns: auto minmax(0, 1fr);

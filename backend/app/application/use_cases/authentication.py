@@ -418,8 +418,7 @@ async def _failed_attempts_recently(uow: UnitOfWork, user_id: UserId) -> int:
     """Failed sign-ins against this account in the recent window.
 
     A signal, not a risk score: it drives a security event and a notification,
-    and deliberately does not consult GeoIP, which belongs to the platform
-    security phase.
+    and deliberately does not consult GeoIP.
     """
     since = utcnow() - timedelta(minutes=SUSPICIOUS_WINDOW_MINUTES)
     count = await uow.security_events.count_recent(

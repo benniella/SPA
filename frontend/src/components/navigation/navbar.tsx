@@ -9,7 +9,6 @@ import { Icon } from "@/components/ui/icon";
 import { ButtonLink } from "@/components/ui/button";
 import { NAV_ACTIONS, NAV_ITEMS, PUBLIC_ROUTE_FOR } from "@/data/marketing";
 
-/* How far the panel must be dragged upwards before releasing closes it. */
 const SWIPE_CLOSE_DISTANCE = 56;
 
 export function Navbar() {
@@ -20,8 +19,6 @@ export function Navbar() {
   const dragStart = useRef<number | null>(null);
   const pathname = usePathname();
 
-  /** Nav ids are in-page anchors here and routes elsewhere, so one list serves
-   * both. Anywhere else, "Platform" becomes '/about'. */
   const isMarketing = pathname === "/";
   const hrefFor = (id: string) => (isMarketing ? `#${id}` : `/${PUBLIC_ROUTE_FOR[id] ?? "about"}`);
 
@@ -30,7 +27,6 @@ export function Navbar() {
     if (returnFocus) toggleRef.current?.focus();
   }, []);
 
-  // Escape closes the panel from anywhere, bound only while it is open.
   useEffect(() => {
     if (!open) return;
 
@@ -42,8 +38,6 @@ export function Navbar() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open, close]);
 
-  // Lock the body while the panel is open, restoring the previous value rather
-  // than resetting to "": another component may have set it.
   useEffect(() => {
     if (!open) return;
 
@@ -54,19 +48,12 @@ export function Navbar() {
     };
   }, [open]);
 
-  // Focus the first link when the panel opens, so the next Tab lands inside it
-  // rather than continuing through the header behind it. The panel is portalled
-  // to the body, so the ref is only populated once it has mounted.
   useEffect(() => {
     if (!open) return;
     const first = panelRef.current?.querySelector<HTMLElement>("a, button");
     first?.focus();
   }, [open]);
 
-  // A swipe upwards on the panel closes it, which is the gesture a thumb reaches
-  // for on a phone. The distance is tracked on move and on release: a browser can
-  // cancel a touch drag with 'pointercancel' before it fires 'pointerup', so
-  // acting on the move keeps the gesture working on a real touchscreen.
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
     dragStart.current = event.clientY;
   }

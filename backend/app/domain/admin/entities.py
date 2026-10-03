@@ -274,6 +274,33 @@ class AdminInvitation:
             self.revoked_at = at or utcnow()
 
 
+class AdminInvitationStatus:
+    """The derived lifecycle state of an invitation.
+
+    Never stored: acceptance, revocation and expiry are recorded as separate
+    timestamps, and the status shown to an operator is a reading of those.
+    """
+
+    __slots__ = ("value",)
+
+    OUTSTANDING = "outstanding"
+    ACCEPTED = "accepted"
+    REVOKED = "revoked"
+    EXPIRED = "expired"
+
+    ALLOWED = frozenset({OUTSTANDING, ACCEPTED, REVOKED, EXPIRED})
+
+    @classmethod
+    def of(cls, invitation: AdminInvitation, *, at: datetime | None = None) -> str:
+        if invitation.is_accepted:
+            return cls.ACCEPTED
+        if invitation.is_revoked:
+            return cls.REVOKED
+        if invitation.is_expired(at=at):
+            return cls.EXPIRED
+        return cls.OUTSTANDING
+
+
 @dataclass(slots=True)
 class AdminMfaChallenge:
     """A short-lived step-up challenge bound to one administrative session.

@@ -148,9 +148,8 @@ async def current_user_dependency(
     re-checked on every request. A revoked session and a suspended account both
     therefore stop working immediately rather than when the cookie expires.
 
-    Outside production a development identity header may be enabled, so the
-    Phase 0-8 test architecture keeps working. That path can never be selected in
-    production: 'is_local' is checked here as well as at selection time.
+    Outside production a development identity header may be enabled for local
+    testing. That path can never be selected in production.
     """
     settings_ = settings
     if settings_.dev_identity_header and not settings_.is_production:

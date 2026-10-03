@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { Button, ButtonLink, buttonClasses, type ButtonVariant } from "@/components/ui/button";
+import { CheckboxField } from "@/components/ui/checkbox-field";
 
 const VARIANTS: readonly ButtonVariant[] = ["primary", "technical", "ai"];
 
@@ -116,5 +117,26 @@ describe("ButtonLink", () => {
     const link = screen.getByRole("link", { name: "View Teams" });
     expect(link).not.toHaveAttribute("aria-busy");
     expect(link).toHaveAttribute("href", "/teams");
+  });
+});
+
+describe("CheckboxField", () => {
+  it("keeps the checkbox box visible while rendering the check mark", async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+
+    render(<CheckboxField checked label="Analytics" onChange={onChange} />);
+
+    const checkbox = screen.getByRole("checkbox", { name: "Analytics" });
+    const box = checkbox.closest(".form-checkbox__box");
+    const mark = checkbox.closest(".form-checkbox__box")?.querySelector(".form-checkbox__mark");
+
+    expect(checkbox).toBeChecked();
+    expect(box).toBeInTheDocument();
+    expect(mark).toBeInTheDocument();
+    expect(mark?.textContent).toBe("✓");
+
+    await user.click(checkbox);
+    expect(onChange).toHaveBeenCalledTimes(1);
   });
 });

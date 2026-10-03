@@ -8,35 +8,26 @@ import { Icon } from "@/components/ui/icon";
 import type { IconName } from "@/data/marketing";
 import { ENGINE_STAGES, ILLUSTRATIVE_NOTE } from "@/data/marketing";
 
-/* The figures every raw frame draws. One model, so the input sequence and the
-   tracking panel below it cannot drift into showing different players: that
-   panel draws a corner-marked box around each position this produces. */
 interface FrameFigure {
   readonly id: string;
   readonly startX: number;
   readonly startY: number;
   readonly dx: number;
   readonly dy: number;
-  /** Offset into the sequence, so figures do not move in lockstep. */
-  readonly phase: number;
+  readonly offset: number;
 }
 
-/* Six figures over the pitch, not two isolated marks: a frame of play holds a
-   scattered group, which is what makes the sequence read as footage. The
-   vertical drift is the perspective — figures low on the frame move faster. */
 const FRAME_FIGURES: readonly FrameFigure[] = [
-  { id: "a", startX: 26, startY: 74, dx: 4.5, dy: -1.2, phase: 0 },
-  { id: "b", startX: 54, startY: 62, dx: -3.5, dy: 1.1, phase: 1 },
-  { id: "c", startX: 82, startY: 82, dx: 3.8, dy: -1.6, phase: 2 },
-  { id: "d", startX: 112, startY: 58, dx: -4.2, dy: 1.4, phase: 0.5 },
-  { id: "e", startX: 142, startY: 78, dx: 3.2, dy: -1, phase: 1.6 },
-  { id: "f", startX: 172, startY: 66, dx: -3.6, dy: 1.3, phase: 2.4 },
+  { id: "a", startX: 26, startY: 74, dx: 4.5, dy: -1.2, offset: 0 },
+  { id: "b", startX: 54, startY: 62, dx: -3.5, dy: 1.1, offset: 1 },
+  { id: "c", startX: 82, startY: 82, dx: 3.8, dy: -1.6, offset: 2 },
+  { id: "d", startX: 112, startY: 58, dx: -4.2, dy: 1.4, offset: 0.5 },
+  { id: "e", startX: 142, startY: 78, dx: 3.2, dy: -1, offset: 1.6 },
+  { id: "f", startX: 172, startY: 66, dx: -3.6, dy: 1.3, offset: 2.4 },
 ];
 
-/* Where a figure sits in a given frame. Each starts at its own phase, so the
-   figures travel independently instead of sliding as one rigid block. */
 function figureAt(figure: FrameFigure, frame: number): { readonly x: number; readonly y: number } {
-  const travelled = frame + figure.phase;
+  const travelled = frame + figure.offset;
   return {
     x: figure.startX + figure.dx * travelled,
     y: figure.startY + figure.dy * travelled,
@@ -108,9 +99,6 @@ export function VideoPerformanceVisualization() {
       className="spa-analysis-visual"
       aria-label="SPA analysis pipeline: video input, detection and tracking, performance data"
     >
-      {/* =========================================================
-          STAGE 01 — VIDEO INPUT
-          ========================================================= */}
       <div className="spa-analysis-panel spa-analysis-panel--input">
         <div className="spa-analysis-panel__header">
           <span className="spa-analysis-panel__title">Video input</span>

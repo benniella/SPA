@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { AppPageBody, AppPageHeader } from "@/components/app/page-header";
 import { AdminSectionNav } from "@/features/admin/components/admin-section-nav";
-import { InvitationComposer } from "@/features/admin";
+import { InvitationComposer, InvitationList } from "@/features/admin";
 
 export const metadata: Metadata = {
   title: "Invitations",
@@ -19,6 +19,7 @@ export default function InvitationsPage() {
       />
       <AppPageBody>
         <InvitationComposer />
+        <InvitationList />
       </AppPageBody>
     </>
   );

@@ -1,4 +1,3 @@
-/* Reset */
 *,
 *::before,
 *::after {
@@ -67,7 +66,6 @@ ol {
   }
 }
 
-/* Typography */
 .heading-display,
 .heading-page,
 .heading-section,
@@ -105,7 +103,6 @@ ol {
   letter-spacing: var(--tracking-normal);
 }
 
-/* Uppercase section labels and hero eyebrow. */
 .heading-display[data-case="uppercase"],
 .heading-page[data-case="uppercase"],
 .heading-section[data-case="uppercase"],
@@ -190,7 +187,6 @@ ol {
   border: 0;
 }
 
-/* Page furniture */
 .page-main {
   flex: 1;
   padding-block: var(--section-padding-block);
@@ -254,7 +250,6 @@ ol {
   transform: translateY(0);
 }
 
-/* Public navigation */
 .nav-shell {
   position: sticky;
   top: 0;
@@ -333,10 +328,6 @@ ol {
   color: var(--color-accent);
 }
 
-/* The overlay is portalled to the body: '.nav-shell' carries a 'backdrop-filter',
-   which makes it the containing block for fixed descendants and would shrink a
-   full-viewport backdrop to the header's own box. Above the sticky header's 50,
-   so the page content behind the panel is fully covered. */
 .nav-mobile {
   position: fixed;
   top: var(--header-height);
@@ -352,9 +343,6 @@ ol {
   padding-block: var(--space-5);
   padding-inline: var(--gutter);
 }
-/* Opaque, not a wash: opening the menu replaces the page rather than dimming it,
-   so nothing of the landing content shows through. Below the sticky header's 50,
-   so the toggle that doubles as the close button stays reachable above it. */
 .nav-mobile-backdrop {
   position: fixed;
   inset: 0;

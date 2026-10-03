@@ -166,8 +166,20 @@ class SecurityEventRepository(Protocol):
         limit: int = 50,
         offset: int = 0,
         event_type: str | None = None,
+        actor_id: object | None = None,
+        since: object | None = None,
+        until: object | None = None,
     ) -> list[SecurityEvent]:
         """Platform-wide audit records, for administrators entitled to read them."""
+
+    async def count_administrative(
+        self,
+        *,
+        event_type: str | None = None,
+        actor_id: object | None = None,
+        since: object | None = None,
+        until: object | None = None,
+    ) -> int: ...
 
     async def count_recent(
         self,

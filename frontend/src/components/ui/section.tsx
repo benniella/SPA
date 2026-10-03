@@ -1,7 +1,5 @@
 import type { ElementType, ReactNode } from "react";
 
-/* Container */
-
 export type ContainerWidth = "page" | "narrow" | "full";
 
 export interface ContainerProps {
@@ -25,9 +23,7 @@ export function Container({ width = "page", className, children }: ContainerProp
 /* Section */
 
 export interface SectionProps {
-  /** Anchor target, referenced by the navigation and the footer. */
   readonly id: string;
-  /** The id of the heading element that names this section. */
   readonly labelledBy: string;
   readonly spacing?: "default" | "tight" | "none";
   readonly divider?: boolean;
@@ -69,7 +65,6 @@ export interface HeadingProps {
   readonly id?: string;
   readonly level?: HeadingLevel;
   readonly size?: "display" | "page" | "section" | "subsection" | "card";
-  /** Section labels and the hero are uppercase. Body prose never is. */
   readonly uppercase?: boolean;
   readonly className?: string;
   readonly children: ReactNode;
@@ -104,7 +99,6 @@ export function Heading({
   );
 }
 
-/** The eyebrow + heading + lede stack that opens most sections. */
 export interface SectionIntroProps {
   readonly id: string;
   readonly eyebrow?: string;

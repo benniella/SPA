@@ -31,9 +31,7 @@ class WebSocketAuthenticator:
         ""
         if not user_id_header or not organization_id:
             return None
-        # A production deployment must present a real session credential; until
-        # the authentication phase lands, the development header is unavailable
-        # in production, matching the HTTP dependency exactly.
+        # Development identity headers are never accepted in production.
         if self._settings.is_production:
             return None
 

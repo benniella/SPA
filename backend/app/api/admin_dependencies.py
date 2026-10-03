@@ -1,10 +1,3 @@
-"""Administrative authorization dependencies.
-
-The HTTP boundary around 'app.application.admin_authz'. Routes declare the
-privilege they need; nothing here inspects a role name, and nothing trusts the
-request body for authorization.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
@@ -60,8 +53,6 @@ AdminDep = Annotated[AdminContext, Depends(require_admin)]
 
 
 def require_privilege(privilege: str) -> Callable[..., Awaitable[AdminContext]]:
-    """A dependency that admits only administrators holding 'privilege'."""
-
     async def dependency(admin: AdminDep) -> AdminContext:
         try:
             admin.require(privilege)

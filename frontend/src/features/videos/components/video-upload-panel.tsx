@@ -10,7 +10,7 @@ import { completeVideoUpload, requestVideoUpload, uploadToStorage } from "@/serv
 
 const ACCEPTED_TYPES = "video/mp4,video/quicktime,video/webm,video/x-matroska";
 
-type Phase =
+type UploadState =
   | { status: "idle" }
   | { status: "requesting" }
   | { status: "uploading"; filename: string; progress: number | null }
@@ -24,15 +24,17 @@ export interface VideoUploadPanelProps {
 export function VideoUploadPanel({ onUploaded }: VideoUploadPanelProps) {
   const organizationId = useOrganizationId();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [phase, setPhase] = useState<Phase>({ status: "idle" });
+  const [uploadState, setUploadState] = useState<UploadState>({ status: "idle" });
 
   const busy =
-    phase.status === "requesting" || phase.status === "uploading" || phase.status === "confirming";
+    uploadState.status === "requesting" ||
+    uploadState.status === "uploading" ||
+    uploadState.status === "confirming";
 
   async function handleFile(file: File) {
     if (organizationId === null) return;
 
-    setPhase({ status: "requesting" });
+    setUploadState({ status: "requesting" });
 
     let ticket;
     try {
@@ -42,22 +44,23 @@ export function VideoUploadPanel({ onUploaded }: VideoUploadPanelProps) {
         content_type: file.type || null,
       });
     } catch (error) {
-      setPhase({ status: "error", message: describe(error, "Could not start the upload.") });
+      setUploadState({ status: "error", message: describe(error, "Could not start the upload.") });
       return;
     }
 
-    setPhase({ status: "uploading", filename: file.name, progress: 0 });
+    setUploadState({ status: "uploading", filename: file.name, progress: 0 });
 
     try {
       await uploadToStorage(ticket.upload_url, file, {
-        onProgress: (progress) => setPhase({ status: "uploading", filename: file.name, progress }),
+        onProgress: (progress) =>
+          setUploadState({ status: "uploading", filename: file.name, progress }),
       });
     } catch (error) {
-      setPhase({ status: "error", message: describe(error, "The upload failed.") });
+      setUploadState({ status: "error", message: describe(error, "The upload failed.") });
       return;
     }
 
-    setPhase({ status: "confirming", filename: file.name });
+    setUploadState({ status: "confirming", filename: file.name });
 
     try {
       await completeVideoUpload(ticket.video_id, {
@@ -65,14 +68,14 @@ export function VideoUploadPanel({ onUploaded }: VideoUploadPanelProps) {
         size_bytes: file.size,
       });
     } catch (error) {
-      setPhase({
+      setUploadState({
         status: "error",
         message: describe(error, "The file was uploaded but could not be confirmed."),
       });
       return;
     }
 
-    setPhase({ status: "idle" });
+    setUploadState({ status: "idle" });
     if (inputRef.current) inputRef.current.value = "";
     onUploaded();
   }
@@ -97,27 +100,27 @@ export function VideoUploadPanel({ onUploaded }: VideoUploadPanelProps) {
         icon={<Icon name="upload" size={16} />}
         disabled={busy || organizationId === null}
         loading={busy}
-        loadingLabel={loadingLabel(phase)}
+        loadingLabel={loadingLabel(uploadState)}
         onClick={() => inputRef.current?.click()}
       >
         Upload video
       </Button>
 
-      {phase.status === "uploading" ? (
-        <UploadProgress filename={phase.filename} progress={phase.progress} />
+      {uploadState.status === "uploading" ? (
+        <UploadProgress filename={uploadState.filename} progress={uploadState.progress} />
       ) : null}
 
-      {phase.status === "error" ? (
+      {uploadState.status === "error" ? (
         <p className="text-caption" role="alert">
-          {phase.message}
+          {uploadState.message}
         </p>
       ) : null}
     </div>
   );
 }
 
-function loadingLabel(phase: Phase): string {
-  switch (phase.status) {
+function loadingLabel(state: UploadState): string {
+  switch (state.status) {
     case "requesting":
       return "Preparing upload";
     case "uploading":

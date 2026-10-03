@@ -3,6 +3,7 @@ export { AdministratorList, AdministratorStatusBadge } from "./components/admini
 export { AuditLog } from "./components/audit-log";
 export { InvitationAcceptance } from "./components/invitation-acceptance";
 export { InvitationActions, InvitationComposer } from "./components/invitation-manager";
+export { InvitationList } from "./components/invitation-list";
 export { MfaChallenge } from "./components/mfa-challenge";
 export { MfaEnrollment } from "./components/mfa-enrollment";
 export { RecoveryCodes } from "./components/recovery-codes";

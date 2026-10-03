@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.exception_handlers import register_exception_handlers
+from app.api.maintenance import MaintenanceMiddleware
 from app.api.middleware import CsrfMiddleware
 from app.api.v1 import api_router
 from app.api.websocket import WebSocketAuthenticator, register_websocket_routes
@@ -214,6 +215,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         cookie_name=settings.csrf_cookie_name,
         header_name=settings.csrf_header_name,
         enabled=not settings.is_local or settings.csrf_enabled_locally,
+    )
+
+    app.add_middleware(
+        MaintenanceMiddleware,
+        unit_of_work_factory=SqlAlchemyUnitOfWorkFactory(get_session_factory(settings)),
+        api_prefix=settings.api_v1_prefix,
     )
 
     app.include_router(api_router, prefix=settings.api_v1_prefix)

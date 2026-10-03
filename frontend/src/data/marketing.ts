@@ -22,8 +22,6 @@ export type IconName =
   | "play"
   | "check";
 
-/* Navigation */
-
 export interface NavItem {
   readonly id: string;
   readonly label: string;
@@ -54,11 +52,7 @@ export const BRAND = {
   proposition: "Turn sports video into performance data",
 } as const;
 
-/* Hero */
-
 export const HERO = {
-  /** Split into two lines so the break is a design decision, not a viewport
-   * accident: the second line carries the payoff and must not wrap. */
   headlineLines: ["Turn sports video", "into performance data"] as const,
   supporting: "AI-powered performance analysis for athletes, coaches, teams and analysts.",
   explanation: {
@@ -77,16 +71,12 @@ export const HERO_VIDEO = {
   description: "Sports footage awaiting analysis in SPA.",
 } as const;
 
-/* Capabilities (#22) */
-
 export interface Capability {
   readonly id: string;
   readonly label: string;
   readonly icon: IconName;
 }
 
-/** No superlatives: SPA has no measurement that would justify "most accurate" or
- * "proven to improve performance". */
 export const CAPABILITIES: readonly Capability[] = [
   { id: "computer-vision", label: "Computer Vision", icon: "vision" },
   { id: "ai", label: "AI", icon: "ai" },
@@ -95,8 +85,6 @@ export const CAPABILITIES: readonly Capability[] = [
   { id: "video-analysis", label: "Video Analysis", icon: "video" },
   { id: "motion-intelligence", label: "Motion Intelligence", icon: "motion" },
 ] as const;
-
-/* The problem (#23) */
 
 export interface ProblemStage {
   readonly id: string;
@@ -125,8 +113,6 @@ export const PROBLEM = {
     },
   ] as const satisfies readonly ProblemStage[],
 } as const;
-
-/* How it works (#24) */
 
 export interface ProcessStep {
   readonly id: string;
@@ -174,20 +160,14 @@ export const PROCESS_STEPS: readonly ProcessStep[] = [
   },
 ] as const satisfies readonly ProcessStep[];
 
-/* AI engine (#25) */
-
 export interface EngineStage {
   readonly id: string;
   readonly label: string;
   readonly output: string;
   readonly icon: IconName;
-  /** 'analysis' stages are computation over tracking data; 'vision' stages need a
-   * model. */
   readonly kind: "vision" | "analysis";
 }
 
-/** The design, not shipped capability: no model has been selected
- * ('ml/models/README.md'). */
 export const ENGINE_STAGES: readonly EngineStage[] = [
   {
     id: "detection",

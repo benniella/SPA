@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.v1 import (
     account,
     admin,
+    admin_configuration,
     admin_invitations,
     admin_mfa,
     analysis,
@@ -29,17 +30,15 @@ api_router.include_router(teams.router, prefix="/teams", tags=["teams"])
 api_router.include_router(players.router, prefix="/players", tags=["players"])
 api_router.include_router(matches.router, prefix="/matches", tags=["matches"])
 api_router.include_router(videos.router, prefix="/videos", tags=["videos"])
-# The processing router carries its own full paths ('/videos/{id}/process',
-# '/processing-jobs/{id}') so it mounts at the API root rather than under a
-# prefix.
+# These routers define their complete paths and mount at the API root.
 api_router.include_router(processing.router, tags=["processing"])
 api_router.include_router(analysis.router, prefix="/analysis-runs", tags=["analysis"])
-# The reports router carries its own full paths ('/analysis-runs/{id}/reports',
-# '/reports/{id}') so a report's creation lives beside the run it describes
-# rather than behind an unrelated prefix.
 api_router.include_router(reports.router, tags=["reports"])
 api_router.include_router(uploads.router, prefix="/uploads", tags=["uploads"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
+api_router.include_router(
+    admin_configuration.router, prefix="/admin", tags=["admin"]
+)
 api_router.include_router(
     admin_invitations.router, prefix="/admin", tags=["admin"]
 )

@@ -474,11 +474,9 @@ class TrackObservationModel(Base, TimestampMixin):
     summary row, these are the observations behind it. Written in bounded batches
     by the worker and read by frame or by track.
 
-    Deliberately pixel-space only. ' 'pitch_x' '/' 'pitch_y' ' and object type
-    belong to the calibration and player-identity phases, and adding them now
-    would store columns no stage can yet populate. ' 'organization_id' ' is
+    Observations remain in source-image pixel space. ' 'organization_id' ' is
     denormalised from the dataset so tenancy is a single indexed predicate on the
-    hot read path rather than a join to authorize a frame of data.
+    read path rather than a join.
     """
 
     __tablename__ = "tracking_observations"
@@ -1072,3 +1070,48 @@ class AdminMfaChallengeModel(Base, TimestampMixin):
     satisfied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+
+
+class PlatformSettingModel(Base, TimestampMixin):
+    """A stored runtime configuration value.
+
+    Keyed by the setting's declared name. The value is JSONB because the
+    declared type varies (bool, int, string, list); the declaration in
+    'app.domain.configuration.settings' is what makes it typed, not the column.
+    A key that is not declared is never written here.
+    """
+
+    __tablename__ = "platform_settings"
+
+    # The declared setting name is the identity: a settings row is addressed by
+    # what it configures, not by a synthetic id, and a second row for the same key
+    # must be impossible rather than merely discouraged.
+    key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    value: Mapped[object] = mapped_column(JSONB, nullable=False)
+    changed_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+
+class IpBlockModel(Base, TimestampMixin):
+    """An auditable network block.
+
+    'network' holds a canonical address or CIDR. 'kind' distinguishes a temporary
+    block, which always carries an expiry, from a permanent one.
+    """
+
+    __tablename__ = "ip_blocks"
+    __table_args__ = (
+        CheckConstraint("kind IN ('temporary', 'permanent')", name="ip_block_kind"),
+        Index("ix_ip_blocks_active", "removed_at", "expires_at"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_primary_key()
+    network: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    reason: Mapped[str] = mapped_column(String(300), nullable=False)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

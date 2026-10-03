@@ -6,8 +6,6 @@ export type AnalysisRunStatus =
 
 export type ReportStatus = "draft" | "generating" | "ready" | "failed";
 
-/* Pagination */
-
 export interface PageMeta {
   limit: number;
   offset: number;
@@ -18,8 +16,6 @@ export interface Page<T> {
   items: T[];
   meta: PageMeta;
 }
-
-/* Organizations */
 
 export interface OrganizationCreate {
   name: string;
@@ -129,7 +125,6 @@ export interface Video {
   updated_at: string;
 }
 
-/** What the client needs to upload a video directly to object storage. */
 export interface VideoUploadTicket {
   video_id: string;
   upload_url: string;
@@ -164,10 +159,7 @@ export interface AnalysisRun {
   updated_at: string;
 }
 
-/** Processing-job lifecycle, mirroring 'app/domain/jobs/entities.py'. */
 export type ProcessingJobStatus = "queued" | "running" | "completed" | "failed";
-
-/* Derived metrics, mirroring 'app/schemas/metrics.py'. */
 
 export type MetricName =
   | "observation_count"
@@ -299,14 +291,11 @@ export interface ProcessingJob {
   updated_at: string;
 }
 
-/** The processing state of a video, for the reconnect polling fallback. */
 export interface VideoProcessing {
   video_id: string;
   video_status: VideoStatus;
   job: ProcessingJob | null;
-  /** Present once an analysis run exists for the video. */
   analysis_run_id: string | null;
-  /** CV counters, each 'null' until the stage that produces it has run. */
   frames_processed: number | null;
   detections: number | null;
   tracks: number | null;
@@ -327,8 +316,6 @@ export interface ProcessingEventMessage {
   error: string | null;
   timestamp: string;
 }
-
-/* Reports */
 
 export interface Report {
   id: string;
@@ -415,8 +402,6 @@ export interface HealthResponse {
   version: string;
   timestamp: string;
 }
-/* Authentication and account security */
-
 export interface AuthenticatedUserOrganization {
   id: string;
   name: string;
@@ -498,21 +483,12 @@ export interface RecoveryCompletePayload {
   new_password: string;
 }
 
-/* Platform administration, mirroring 'app/schemas/admin.py'.
-   'status' is the lifecycle state the backend reports — one of 'invited',
-   'active', 'suspended' or 'revoked'. It is a string rather than a union so a
-   status added by a newer backend does not break an older client, matching the
-   convention the API uses elsewhere. */
-
 export interface Administrator {
   id: string;
   user_id: string;
-  /** Absent when the account is gone. */
   email: string | null;
   status: string;
-  /** Role names, distinct from the privilege identifiers below. */
   roles: string[];
-  /** Privilege identifiers such as 'admins.read'. */
   privileges: string[];
   mfa_enrolled: boolean;
   created_at: string;
@@ -539,6 +515,18 @@ export interface InvitationCreatePayload {
 export interface InvitationCreateResult {
   invitation_id: string;
   status: string;
+}
+
+export interface Invitation {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+  invited_by: string | null;
+  expires_at: string;
+  accepted_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
 }
 
 export interface InvitationResendResult {

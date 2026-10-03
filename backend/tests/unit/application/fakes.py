@@ -16,6 +16,7 @@ from app.domain.admin.entities import (
     AdminId,
     AdminIdentity,
     AdminInvitation,
+    AdminInvitationStatus,
     AdminMfaChallenge,
     AdminPrivilege,
     AdminRole,
@@ -28,6 +29,7 @@ from app.domain.metrics.types import TrackMetricRecord
 from app.domain.organizations.entities import Organization, OrganizationMembership
 from app.domain.players.entities import Player
 from app.domain.reports.entities import Report
+from app.domain.security.network import IpBlock
 from app.domain.shared import (
     AnalysisRunId,
     JobId,
@@ -457,6 +459,46 @@ class FakeReportRepository(_FakeRepository):
         return matches[offset : offset + limit]
 
 
+class FakePlatformSettingRepository:
+    def __init__(self) -> None:
+        self._values: dict[str, object] = {}
+        self.changed_by: dict[str, object] = {}
+
+    async def get(self, key: str) -> object | None:
+        return self._values.get(key)
+
+    async def list(self) -> dict[str, object]:
+        return dict(self._values)
+
+    async def set(self, key: str, value: object, *, changed_by: object | None) -> None:
+        self._values[key] = value
+        self.changed_by[key] = changed_by
+
+    async def delete(self, key: str) -> None:
+        self._values.pop(key, None)
+        self.changed_by.pop(key, None)
+
+
+class FakeIpBlockRepository:
+    def __init__(self) -> None:
+        self._blocks: dict[object, IpBlock] = {}
+
+    async def add(self, block: IpBlock) -> None:
+        self._blocks[block.id] = block
+
+    async def get(self, block_id: object) -> IpBlock | None:
+        return self._blocks.get(block_id)
+
+    async def list_active(self) -> list[IpBlock]:
+        return [block for block in self._blocks.values() if block.is_active()]
+
+    async def list_all(self) -> list[IpBlock]:
+        return sorted(self._blocks.values(), key=lambda block: block.created_at, reverse=True)
+
+    async def update(self, block: IpBlock) -> None:
+        self._blocks[block.id] = block
+
+
 class UnitOfWorkStub:
     """A unit of work backed entirely by in-memory repositories."""
 
@@ -468,6 +510,8 @@ class UnitOfWorkStub:
         self.admin_privileges = FakeAdminPrivilegeRepository()
         self.admin_invitations = FakeAdminInvitationRepository()
         self.admin_mfa = FakeAdminMfaRepository()
+        self.platform_settings = FakePlatformSettingRepository()
+        self.ip_blocks = FakeIpBlockRepository()
         self.sessions = FakeSessionRepository()
         self.challenges = FakeChallengeRepository()
         self.otp_challenges = FakeOtpChallengeRepository()
@@ -604,9 +648,27 @@ class FakeAdminInvitationRepository(_FakeRepository):
         ]
         return max(candidates, key=lambda invitation: invitation.created_at, default=None)
 
-    async def list(self, *, limit: int = 50, offset: int = 0) -> list[AdminInvitation]:
-        invitations = [item for item in self.items if isinstance(item, AdminInvitation)]
+    async def list(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        status: str | None = None,
+        email: str | None = None,
+    ) -> list[AdminInvitation]:
+        invitations = [
+            item
+            for item in self.items
+            if isinstance(item, AdminInvitation)
+            and (email is None or item.email == email)
+            and (status is None or AdminInvitationStatus.of(item) == status)
+        ]
+        invitations.sort(key=lambda invitation: invitation.created_at, reverse=True)
         return invitations[offset : offset + limit]
+
+    async def count(self, *, status: str | None = None, email: str | None = None) -> int:
+        matching = await self.list(limit=len(self.items), status=status, email=email)
+        return len(matching)
 
     async def update(self, invitation: AdminInvitation) -> None:
         self._items[_key(invitation.id)] = invitation

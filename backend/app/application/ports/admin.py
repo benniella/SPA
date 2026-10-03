@@ -75,7 +75,17 @@ class AdminInvitationRepository(Protocol):
     async def latest_for_email(self, email: str) -> AdminInvitation | None:
         """The most recent invitation for an address, for the resend cooldown."""
 
-    async def list(self, *, limit: int = 50, offset: int = 0) -> list[AdminInvitation]: ...
+    async def list(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        status: str | None = None,
+        email: str | None = None,
+    ) -> list[AdminInvitation]:
+        """Invitations, newest first, optionally narrowed by status or address."""
+
+    async def count(self, *, status: str | None = None, email: str | None = None) -> int: ...
 
     async def update(self, invitation: AdminInvitation) -> None: ...
 

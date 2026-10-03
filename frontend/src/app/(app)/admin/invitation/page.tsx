@@ -6,9 +6,6 @@ import { useSearchParams } from "next/navigation";
 import { LoadingState } from "@/components/ui/loading-state";
 import { InvitationAcceptance } from "@/features/admin";
 
-/* The token arrives in the query string of the emailed link and is read once.
-   Nothing is written to browser storage, and the token is not echoed back into
-   the DOM beyond this flow. */
 export default function InvitationPage() {
   return (
     <Suspense fallback={<LoadingState label="Loading invitation" rows={2} />}>

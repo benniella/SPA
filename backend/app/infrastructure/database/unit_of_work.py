@@ -17,10 +17,12 @@ from app.infrastructure.database.repositories import (
     SqlAdminRepository,
     SqlAdminRoleRepository,
     SqlAnalysisRunRepository,
+    SqlIpBlockRepository,
     SqlMatchRepository,
     SqlOrganizationRepository,
     SqlOtpChallengeRepository,
     SqlPerformanceMetricRepository,
+    SqlPlatformSettingRepository,
     SqlPlayerRepository,
     SqlProcessingJobRepository,
     SqlReportRepository,
@@ -52,6 +54,8 @@ class SqlAlchemyUnitOfWork:
     admin_privileges: SqlAdminPrivilegeRepository
     admin_invitations: SqlAdminInvitationRepository
     admin_mfa: SqlAdminMfaRepository
+    platform_settings: SqlPlatformSettingRepository
+    ip_blocks: SqlIpBlockRepository
     sessions: SqlSessionRepository
     challenges: SqlSecurityChallengeRepository
     otp_challenges: SqlOtpChallengeRepository
@@ -87,6 +91,8 @@ class SqlAlchemyUnitOfWork:
         self.admin_privileges = SqlAdminPrivilegeRepository(session)
         self.admin_invitations = SqlAdminInvitationRepository(session)
         self.admin_mfa = SqlAdminMfaRepository(session)
+        self.platform_settings = SqlPlatformSettingRepository(session)
+        self.ip_blocks = SqlIpBlockRepository(session)
         self.sessions = SqlSessionRepository(session)
         self.challenges = SqlSecurityChallengeRepository(session)
         self.otp_challenges = SqlOtpChallengeRepository(session)

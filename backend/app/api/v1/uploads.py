@@ -14,9 +14,6 @@ router = APIRouter()
 
 _CHUNK_SIZE = 1024 * 1024
 
-# Container formats a coach might realistically upload. Extending this list is a
-# product decision, not a code change; it lives here rather than in the domain
-# because it is a transfer-level concern.
 ALLOWED_CONTENT_TYPES = frozenset(
     {
         "video/mp4",
@@ -55,7 +52,6 @@ async def upload_object(
             details={"allowed": sorted(ALLOWED_CONTENT_TYPES)},
         )
 
-    # Declared size, when present, lets the transfer be rejected before writing.
     declared_length = request.headers.get("content-length")
     if declared_length and int(declared_length) > settings.max_upload_bytes:
         raise UnsupportedMediaError(

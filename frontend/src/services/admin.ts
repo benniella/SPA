@@ -3,6 +3,7 @@ import { queryString } from "@/services/query";
 import type {
   Administrator,
   AuditEvent,
+  Invitation,
   InvitationAccepted,
   InvitationCreatePayload,
   InvitationCreateResult,
@@ -154,8 +155,27 @@ export function generateRecoveryCodes(options?: RequestOptions): Promise<MfaReco
   return api.post<MfaRecoveryCodes>("/admin/mfa/recovery-codes", undefined, options);
 }
 
+export function listInvitations(
+  params: {
+    limit?: number;
+    offset?: number;
+    status?: string;
+    email?: string;
+  } = {},
+  options?: RequestOptions,
+): Promise<Page<Invitation>> {
+  return api.get<Page<Invitation>>(`/admin/invitations${queryString(params)}`, options);
+}
+
 export function listAuditEvents(
-  params: { limit?: number; offset?: number; event_type?: string } = {},
+  params: {
+    limit?: number;
+    offset?: number;
+    event_type?: string;
+    actor_id?: string;
+    from?: string;
+    to?: string;
+  } = {},
   options?: RequestOptions,
 ): Promise<Page<AuditEvent>> {
   return api.get<Page<AuditEvent>>(`/admin/audit-events${queryString(params)}`, options);

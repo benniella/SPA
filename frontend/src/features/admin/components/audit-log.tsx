@@ -15,14 +15,34 @@ import type { AuditEvent } from "@/types/api";
 
 const PAGE_SIZE = 25;
 
+interface AuditFilters {
+  eventType: string;
+  actorId: string;
+  from: string;
+  to: string;
+}
+
+const EMPTY_FILTERS: AuditFilters = { eventType: "", actorId: "", from: "", to: "" };
+
 export function AuditLog() {
   const [offset, setOffset] = useState(0);
-  const [eventType, setEventType] = useState("");
-  const [draftType, setDraftType] = useState("");
+  const [filters, setFilters] = useState<AuditFilters>(EMPTY_FILTERS);
+  const [draft, setDraft] = useState<AuditFilters>(EMPTY_FILTERS);
 
   const { state, reload } = useApiQuery(
-    (options) => listAuditEvents({ limit: PAGE_SIZE, offset, event_type: eventType }, options),
-    `admin:audit:${offset}:${eventType}`,
+    (options) =>
+      listAuditEvents(
+        {
+          limit: PAGE_SIZE,
+          offset,
+          event_type: filters.eventType,
+          actor_id: filters.actorId,
+          from: filters.from,
+          to: filters.to,
+        },
+        options,
+      ),
+    `admin:audit:${offset}:${filters.eventType}:${filters.actorId}:${filters.from}:${filters.to}`,
   );
 
   if (state.status === "loading") {
@@ -39,29 +59,91 @@ export function AuditLog() {
   return (
     <div className="stack stack-5">
       <form
-        className="row-center"
+        className="stack stack-3"
         role="search"
         onSubmit={(event) => {
           event.preventDefault();
           setOffset(0);
-          setEventType(draftType.trim());
+          setFilters({
+            eventType: draft.eventType.trim(),
+            actorId: draft.actorId.trim(),
+            from: draft.from,
+            to: draft.to,
+          });
         }}
       >
-        <div className="form-field" style={{ flex: "1 1 auto" }}>
-          <label className="form-label" htmlFor="audit-event-type">
-            Event type
-          </label>
-          <input
-            id="audit-event-type"
-            className="form-control"
-            value={draftType}
-            onChange={(event) => setDraftType(event.target.value)}
-            placeholder="e.g. ADMIN_SUSPENDED"
-          />
+        <div className="row-center" style={{ gap: "var(--space-3)", flexWrap: "wrap" }}>
+          <div className="form-field" style={{ flex: "1 1 12rem" }}>
+            <label className="form-label" htmlFor="audit-event-type">
+              Event type
+            </label>
+            <input
+              id="audit-event-type"
+              className="form-control"
+              value={draft.eventType}
+              onChange={(event) => setDraft({ ...draft, eventType: event.target.value })}
+              placeholder="e.g. ADMIN_SUSPENDED"
+            />
+          </div>
+
+          <div className="form-field" style={{ flex: "1 1 12rem" }}>
+            <label className="form-label" htmlFor="audit-actor">
+              Actor id
+            </label>
+            <input
+              id="audit-actor"
+              className="form-control"
+              value={draft.actorId}
+              onChange={(event) => setDraft({ ...draft, actorId: event.target.value })}
+              placeholder="Administrator UUID"
+            />
+          </div>
+
+          <div className="form-field" style={{ flex: "1 1 10rem" }}>
+            <label className="form-label" htmlFor="audit-from">
+              From
+            </label>
+            <input
+              id="audit-from"
+              className="form-control"
+              type="date"
+              value={draft.from}
+              onChange={(event) => setDraft({ ...draft, from: event.target.value })}
+            />
+          </div>
+
+          <div className="form-field" style={{ flex: "1 1 10rem" }}>
+            <label className="form-label" htmlFor="audit-to">
+              To
+            </label>
+            <input
+              id="audit-to"
+              className="form-control"
+              type="date"
+              value={draft.to}
+              onChange={(event) => setDraft({ ...draft, to: event.target.value })}
+            />
+          </div>
         </div>
-        <Button type="submit" variant="technical" size="sm" arrow={false}>
-          Filter
-        </Button>
+
+        <div className="form-actions">
+          <Button type="submit" variant="technical" size="sm" arrow={false}>
+            Filter
+          </Button>
+          <Button
+            type="button"
+            variant="technical"
+            size="sm"
+            arrow={false}
+            onClick={() => {
+              setDraft(EMPTY_FILTERS);
+              setFilters(EMPTY_FILTERS);
+              setOffset(0);
+            }}
+          >
+            Clear
+          </Button>
+        </div>
       </form>
 
       {events.length === 0 ? (

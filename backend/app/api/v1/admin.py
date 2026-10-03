@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -276,6 +277,9 @@ async def list_audit_events(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     event_type: str | None = Query(default=None, max_length=64),
+    actor_id: uuid.UUID | None = Query(default=None),
+    from_: datetime | None = Query(default=None, alias="from"),
+    to: datetime | None = Query(default=None),
 ) -> AuditEventList:
     async with uow:
         events = await admin_audit.list_administrative_events(
@@ -284,11 +288,22 @@ async def list_audit_events(
             limit=limit,
             offset=offset,
             event_type=event_type,
+            actor_id=actor_id,
+            since=from_,
+            until=to,
+        )
+        total = await admin_audit.count_administrative_events(
+            admin,
+            security_events=uow.security_events,
+            event_type=event_type,
+            actor_id=actor_id,
+            since=from_,
+            until=to,
         )
         await uow.commit()
     return AuditEventList(
         items=[AuditEventRead.model_validate(audit_payload(event)) for event in events],
-        meta=PageMeta(limit=limit, offset=offset, count=len(events)),
+        meta=PageMeta(limit=limit, offset=offset, count=total),
     )
 
 

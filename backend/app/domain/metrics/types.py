@@ -18,8 +18,8 @@ from app.domain.shared import AnalysisRunId, OrganizationId, TrackMetricId, new_
 class MetricSpace(StrEnum):
     """Which coordinate space a metric's numbers are expressed in.
 
-    The distinction is what keeps pixels from being read as metres. A future
-    calibration layer adds ``CALIBRATED`` values; nothing in this phase may.
+    The distinction prevents pixels from being read as metres. Calibrated
+    values are represented separately from source-image coordinates.
     """
 
     SOURCE = "source"

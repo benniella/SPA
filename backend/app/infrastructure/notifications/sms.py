@@ -1,12 +1,3 @@
-"""SMS delivery adapters.
-
-No SMS provider is integrated in this phase. 'UnconfiguredSmsSender' is a real
-implementation of the port that reports itself as unconfigured, so the phone
-endpoints answer '503' rather than claiming to have sent a code that never
-existed. Adding a provider means adding one class here and one configuration
-value; nothing in the application layer changes.
-"""
-
 from __future__ import annotations
 
 from app.application.ports.notifications import DeliveryError, SmsMessage

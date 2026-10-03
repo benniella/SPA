@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.application.use_cases.admin_administrators import AdministratorSummary
+from app.application.use_cases.admin_invitations import InvitationSummary
 from app.application.use_cases.reports import ReportExport
 from app.application.use_cases.visualizations import VisualizationData
 from app.domain.analysis.entities import AnalysisRun
@@ -261,6 +262,8 @@ def run_visualization_payload(data: VisualizationData) -> dict[str, object]:
         },
         "metrics": analysis_metrics_payload(data.metrics),
     }
+
+
 def administrator_payload(summary: AdministratorSummary) -> dict[str, object]:
     admin = summary.admin
     return {
@@ -283,4 +286,19 @@ def audit_payload(event: SecurityEvent) -> dict[str, object]:
         "event_type": str(event.event_type),
         "metadata": dict(event.metadata),
         "created_at": event.created_at,
+    }
+
+
+def invitation_payload(summary: InvitationSummary) -> dict[str, object]:
+    invitation = summary.invitation
+    return {
+        "id": invitation.id,
+        "email": invitation.email,
+        "role": str(invitation.role),
+        "status": summary.status,
+        "invited_by": invitation.invited_by,
+        "expires_at": invitation.expires_at,
+        "accepted_at": invitation.accepted_at,
+        "revoked_at": invitation.revoked_at,
+        "created_at": invitation.created_at,
     }

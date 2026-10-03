@@ -28,9 +28,7 @@ async def _settings():
     return get_settings()
 
 
-async def _make_user(
-    *, email: str | None = None, display_name: str = "Admin"
-) -> uuid.UUID:
+async def _make_user(*, email: str | None = None, display_name: str = "Admin") -> uuid.UUID:
     from app.core.config import get_settings
     from app.infrastructure.database.engine import get_session_factory
     from app.infrastructure.database.models import UserModel
@@ -50,9 +48,7 @@ async def _make_user(
     return user_id
 
 
-async def _make_session(
-    user_id: uuid.UUID, *, mfa_verified: bool = True
-) -> str:
+async def _make_session(user_id: uuid.UUID, *, mfa_verified: bool = True) -> str:
     """A live session for 'user_id', and its cookie token."""
     from app.core.config import get_settings
     from app.infrastructure.database.engine import get_session_factory
@@ -89,6 +85,9 @@ async def _seed_catalogue() -> None:
 
     session_factory = get_session_factory(get_settings())
     async with session_factory() as session:
+        existing = await session.execute(text("SELECT count(*) FROM admin_roles"))
+        if existing.scalar_one() > 0:
+            return
         privilege_ids: dict[str, uuid.UUID] = {}
         for name in PRIVILEGE_DESCRIPTIONS:
             privilege_id = uuid.uuid4()
@@ -96,24 +95,29 @@ async def _seed_catalogue() -> None:
             await session.execute(
                 text(
                     "INSERT INTO admin_privileges (id, name, description) "
-                    "VALUES (:id, :name, :description)"
+                    "VALUES (:id, :name, :description) "
+                    "ON CONFLICT (name) DO NOTHING"
                 ),
                 {"id": privilege_id, "name": name, "description": name},
             )
+        for name in PRIVILEGE_DESCRIPTIONS:
+            privilege_ids[name] = await _catalogue_id(session, "admin_privileges", name)
         for role_name in ROLE_DESCRIPTIONS:
-            role_id = uuid.uuid4()
             await session.execute(
                 text(
                     "INSERT INTO admin_roles (id, name, description) "
-                    "VALUES (:id, :name, :description)"
+                    "VALUES (:id, :name, :description) "
+                    "ON CONFLICT (name) DO NOTHING"
                 ),
-                {"id": role_id, "name": role_name, "description": role_name},
+                {"id": uuid.uuid4(), "name": role_name, "description": role_name},
             )
+            role_id = await _catalogue_id(session, "admin_roles", role_name)
             for privilege_name in ROLE_PRIVILEGES[role_name]:
                 await session.execute(
                     text(
                         "INSERT INTO admin_role_privileges (id, role_id, privilege_id) "
-                        "VALUES (:id, :role_id, :privilege_id)"
+                        "VALUES (:id, :role_id, :privilege_id) "
+                        "ON CONFLICT (role_id, privilege_id) DO NOTHING"
                     ),
                     {
                         "id": uuid.uuid4(),
@@ -122,6 +126,15 @@ async def _seed_catalogue() -> None:
                     },
                 )
         await session.commit()
+
+
+async def _catalogue_id(session, table: str, name: str) -> uuid.UUID:
+    from sqlalchemy import text
+
+    result = await session.execute(
+        text(f"SELECT id FROM {table} WHERE name = :name"), {"name": name}
+    )
+    return result.scalar_one()
 
 
 async def _make_admin(
@@ -197,9 +210,7 @@ class TestAuthorization:
         _, token = await _make_admin(roles=("superadmin",))
         session_factory = get_session_factory(get_settings())
         async with session_factory() as session:
-            await session.execute(
-                text("UPDATE platform_admins SET status = 'suspended'"), {}
-            )
+            await session.execute(text("UPDATE platform_admins SET status = 'suspended'"), {})
             await session.commit()
 
         response = await client.get("/api/v1/admin/roles", headers=_cookie(token))
@@ -373,9 +384,7 @@ class TestFlowC_Invitation:
         assert accepted.json()["status"] == "invited"
 
         # MFA enrollment for the newly invited administrator.
-        enroll = await client.post(
-            "/api/v1/admin/mfa/enroll", headers=_cookie(invitee_token)
-        )
+        enroll = await client.post("/api/v1/admin/mfa/enroll", headers=_cookie(invitee_token))
         assert enroll.status_code == 200, enroll.text
         secret = enroll.json()["secret"]
 
@@ -403,9 +412,7 @@ class TestFlowC_Invitation:
         assert granted.status_code == 200
         assert "support_admin" in granted.json()["items"]
 
-    async def test_an_ordinary_user_cannot_create_an_invitation(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_an_ordinary_user_cannot_create_an_invitation(self, client: AsyncClient) -> None:
         user_id = await _make_user()
         token = await _make_session(user_id)
         response = await client.post(
@@ -451,6 +458,14 @@ def _token_from_console_email(capsys: pytest.CaptureFixture[str]) -> str:
     return line.split()[0].split("\n")[0]
 
 
+async def _invite(client: AsyncClient, headers: dict[str, str], *, email: str, role: str) -> str:
+    response = await client.post(
+        "/api/v1/admin/invitations", json={"email": email, "role": role}, headers=headers
+    )
+    assert response.status_code == 202, response.text
+    return response.json()["invitation_id"]
+
+
 class TestAuditEndpoint:
     async def test_audit_requires_the_security_read_privilege(self, client: AsyncClient) -> None:
         _, token = await _make_admin(roles=("support_admin",))
@@ -458,7 +473,6 @@ class TestAuditEndpoint:
         assert response.status_code == 403
 
     async def test_a_security_admin_reads_platform_events(self, client: AsyncClient) -> None:
-
 
         _, actor_token = await _make_admin(roles=("superadmin",))
         target_id, _ = await _make_admin(roles=("support_admin",))
@@ -477,3 +491,166 @@ class TestAuditEndpoint:
         # No secret-shaped material in the payloads.
         for item in items:
             assert "token" not in str(item["metadata"]).lower()
+
+
+class TestInvitationListing:
+    async def test_requires_the_privilege(self, client: AsyncClient) -> None:
+        _, token = await _make_admin(roles=("support_admin",))
+        response = await client.get("/api/v1/admin/invitations", headers=_cookie(token))
+        assert response.status_code == 403
+
+    async def test_lists_created_invitations_without_leaking_tokens(
+        self, client: AsyncClient
+    ) -> None:
+        _, actor_token = await _make_admin(roles=("superadmin",))
+        headers = _cookie(actor_token)
+        await _invite(client, headers, email="one@example.com", role="support_admin")
+
+        listing = await client.get("/api/v1/admin/invitations", headers=headers)
+        assert listing.status_code == 200
+        body = listing.json()
+        assert body["meta"]["count"] == 1
+        item = body["items"][0]
+        assert item["email"] == "one@example.com"
+        assert item["role"] == "support_admin"
+        assert item["status"] == "outstanding"
+
+        serialised = str(body).lower()
+        assert "token_hash" not in serialised
+        assert "invitation_token" not in serialised
+
+    async def test_status_filter_narrows_the_page(self, client: AsyncClient) -> None:
+        _, actor_token = await _make_admin(roles=("superadmin",))
+        headers = _cookie(actor_token)
+        kept = await _invite(client, headers, email="kept@example.com", role="support_admin")
+        revoked = await _invite(client, headers, email="gone@example.com", role="support_admin")
+        assert (
+            await client.post(f"/api/v1/admin/invitations/{revoked}/revoke", headers=headers)
+        ).status_code == 200
+
+        outstanding = await client.get(
+            "/api/v1/admin/invitations?status=outstanding", headers=headers
+        )
+        ids = [item["id"] for item in outstanding.json()["items"]]
+        assert ids == [kept]
+
+        revoked_page = await client.get("/api/v1/admin/invitations?status=revoked", headers=headers)
+        assert [item["id"] for item in revoked_page.json()["items"]] == [revoked]
+
+    async def test_unknown_status_is_rejected(self, client: AsyncClient) -> None:
+        _, token = await _make_admin(roles=("superadmin",))
+        response = await client.get(
+            "/api/v1/admin/invitations?status=invented", headers=_cookie(token)
+        )
+        assert response.status_code == 422
+
+    async def test_email_filter_is_exact_and_does_not_enumerate(self, client: AsyncClient) -> None:
+        _, actor_token = await _make_admin(roles=("superadmin",))
+        headers = _cookie(actor_token)
+        await _invite(client, headers, email="match@example.com", role="support_admin")
+        await _invite(client, headers, email="other@example.com", role="support_admin")
+
+        exact = await client.get(
+            "/api/v1/admin/invitations?email=match@example.com", headers=headers
+        )
+        assert [item["email"] for item in exact.json()["items"]] == ["match@example.com"]
+
+        partial = await client.get("/api/v1/admin/invitations?email=match", headers=headers)
+        assert partial.status_code == 422
+
+        absent = await client.get(
+            "/api/v1/admin/invitations?email=nobody@example.com", headers=headers
+        )
+        assert absent.json()["items"] == []
+
+    async def test_pagination_is_bounded_and_ordered(self, client: AsyncClient) -> None:
+        _, actor_token = await _make_admin(roles=("superadmin",))
+        headers = _cookie(actor_token)
+        for index in range(3):
+            await _invite(client, headers, email=f"page{index}@example.com", role="support_admin")
+
+        first = await client.get("/api/v1/admin/invitations?limit=2&offset=0", headers=headers)
+        assert first.status_code == 200
+        assert len(first.json()["items"]) == 2
+        assert first.json()["meta"]["count"] == 3
+
+        last = await client.get("/api/v1/admin/invitations?limit=2&offset=2", headers=headers)
+        assert len(last.json()["items"]) == 1
+
+        oversized = await client.get("/api/v1/admin/invitations?limit=100000", headers=headers)
+        assert oversized.status_code == 422
+
+
+class TestAuditFiltering:
+    async def _seed_events(self, client: AsyncClient) -> tuple[dict[str, str], str, uuid.UUID]:
+        _, super_token = await _make_admin(roles=("superadmin",), email="super@example.com")
+        super_headers = _cookie(super_token)
+        target_id, target_token = await _make_admin(
+            roles=("support_admin",), email="target@example.com"
+        )
+        await client.post(
+            f"/api/v1/admin/administrators/{target_id}/suspend", headers=super_headers
+        )
+        await client.post(
+            f"/api/v1/admin/administrators/{target_id}/reactivate", headers=super_headers
+        )
+        _, audit_token = await _make_admin(roles=("security_admin",))
+        return _cookie(audit_token), target_token, target_id
+
+    async def test_event_type_filter(self, client: AsyncClient) -> None:
+        headers, _, _ = await self._seed_events(client)
+        response = await client.get(
+            "/api/v1/admin/audit-events?event_type=ADMIN_SUSPENDED", headers=headers
+        )
+        assert response.status_code == 200
+        assert [item["event_type"] for item in response.json()["items"]] == ["ADMIN_SUSPENDED"]
+
+    async def test_actor_filter_matches_the_suspended_target(self, client: AsyncClient) -> None:
+        headers, _, target_id = await self._seed_events(client)
+        response = await client.get(
+            f"/api/v1/admin/audit-events?actor_id={target_id}", headers=headers
+        )
+        assert response.status_code == 200
+        assert all(item["actor_id"] == str(target_id) for item in response.json()["items"])
+
+    async def test_unknown_event_type_is_rejected(self, client: AsyncClient) -> None:
+        headers, _, _ = await self._seed_events(client)
+        response = await client.get(
+            "/api/v1/admin/audit-events?event_type=NOT_A_REAL_EVENT", headers=headers
+        )
+        assert response.status_code == 422
+
+    async def test_inverted_date_range_is_rejected(self, client: AsyncClient) -> None:
+        headers, _, _ = await self._seed_events(client)
+        response = await client.get(
+            "/api/v1/admin/audit-events?from=2026-01-02T00:00:00Z&to=2026-01-01T00:00:00Z",
+            headers=headers,
+        )
+        assert response.status_code == 422
+
+    async def test_date_range_excludes_events_outside_it(self, client: AsyncClient) -> None:
+        headers, _, _ = await self._seed_events(client)
+        past = await client.get(
+            "/api/v1/admin/audit-events?to=2000-01-01T00:00:00Z", headers=headers
+        )
+        assert past.json()["items"] == []
+        assert past.json()["meta"]["count"] == 0
+
+    async def test_invalid_date_is_rejected(self, client: AsyncClient) -> None:
+        headers, _, _ = await self._seed_events(client)
+        response = await client.get("/api/v1/admin/audit-events?from=not-a-date", headers=headers)
+        assert response.status_code == 422
+
+    async def test_pagination_does_not_duplicate_across_pages(self, client: AsyncClient) -> None:
+        headers, _, _ = await self._seed_events(client)
+        first = await client.get("/api/v1/admin/audit-events?limit=1&offset=0", headers=headers)
+        second = await client.get("/api/v1/admin/audit-events?limit=1&offset=1", headers=headers)
+        first_ids = {item["id"] for item in first.json()["items"]}
+        second_ids = {item["id"] for item in second.json()["items"]}
+        assert first_ids.isdisjoint(second_ids)
+        assert first.json()["meta"]["count"] >= 2
+
+    async def test_oversized_page_is_rejected(self, client: AsyncClient) -> None:
+        headers, _, _ = await self._seed_events(client)
+        response = await client.get("/api/v1/admin/audit-events?limit=100000", headers=headers)
+        assert response.status_code == 422

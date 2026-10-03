@@ -24,8 +24,11 @@ export function CheckboxField({
   const descriptionId = description ? `${actualId}-description` : undefined;
 
   return (
-    <label htmlFor={actualId} className={`form-checkbox${disabled ? "is-disabled" : ""}`}>
-      <span className={`form-checkbox__box${checked ? "is-checked" : ""}`}>
+    <label
+      htmlFor={actualId}
+      className={`form-checkbox${disabled ? " is-disabled" : ""}`}
+    >
+      <span className={`form-checkbox__box${checked ? " is-checked" : ""}`}>
         <input
           id={actualId}
           type="checkbox"

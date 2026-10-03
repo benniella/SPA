@@ -396,8 +396,6 @@
   justify-content: flex-start;
 }
 
-/* Checkbox carrying the sign-in button's geometry: square, chamfered, with the
-   same inset highlight ring, at the control size the label sits against. */
 .form-checkbox {
   display: flex;
   flex-flow: row wrap;
@@ -452,8 +450,8 @@
 
 .form-checkbox__box.is-checked::before {
   inset: 2px;
-  background: transparent;
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-accent-foreground) 35%, transparent);
+  background: var(--color-surface-elevated);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 35%, transparent);
 }
 
 .form-checkbox__input {
@@ -475,6 +473,8 @@
 .form-checkbox__mark {
   position: relative;
   z-index: 2;
+  pointer-events: none;
+  user-select: none;
   font-size: 0.75rem;
   font-weight: var(--font-weight-bold);
   line-height: 1;
@@ -876,6 +876,12 @@
   background: var(--color-accent);
 }
 
+.ui-checkbox__indicator.is-checked::before {
+  inset: 2px;
+  background: var(--color-surface-elevated);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-accent) 35%, transparent);
+}
+
 .ui-checkbox__input {
   position: absolute;
   inset: 0;
@@ -889,6 +895,8 @@
 
 .ui-checkbox__mark {
   z-index: 1;
+  pointer-events: none;
+  user-select: none;
   font-size: 0.875rem;
   font-weight: var(--font-weight-bold);
   line-height: 1;

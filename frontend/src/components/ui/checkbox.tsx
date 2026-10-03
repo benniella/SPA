@@ -18,8 +18,8 @@ export function Checkbox({
   const id = useId();
 
   return (
-    <label htmlFor={id} className={`ui-checkbox${disabled ? "is-disabled" : ""}`}>
-      <span className={`ui-checkbox__indicator${checked ? "is-checked" : ""}`}>
+    <label htmlFor={id} className={`ui-checkbox${disabled ? " is-disabled" : ""}`}>
+      <span className={`ui-checkbox__indicator${checked ? " is-checked" : ""}`}>
         <input
           id={id}
           type="checkbox"

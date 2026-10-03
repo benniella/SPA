@@ -46,6 +46,7 @@ from app.domain.security.entities import (
     Session,
     SessionId,
 )
+from app.domain.security.network import IpBlock, IpBlockId
 from app.domain.shared import (
     AnalysisRunId,
     JobId,
@@ -70,6 +71,7 @@ from app.infrastructure.database.models import (
     AdminInvitationModel,
     AdminMfaChallengeModel,
     AnalysisRunModel,
+    IpBlockModel,
     MatchModel,
     OrganizationMembershipModel,
     OrganizationModel,
@@ -311,6 +313,32 @@ def security_event_to_domain(model: SecurityEventModel) -> SecurityEvent:
     )
     event.created_at = model.created_at
     return event
+
+
+def ip_block_to_model(entity: IpBlock) -> IpBlockModel:
+    return IpBlockModel(
+        id=entity.id,
+        network=entity.network,
+        kind=entity.kind,
+        reason=entity.reason,
+        created_by=entity.created_by,
+        expires_at=entity.expires_at,
+        removed_at=entity.removed_at,
+    )
+
+
+def ip_block_to_domain(model: IpBlockModel) -> IpBlock:
+    block = IpBlock(
+        network=model.network,
+        kind=model.kind,
+        reason=model.reason,
+        created_by=UserId(model.created_by) if model.created_by else None,
+        id=IpBlockId(model.id),
+        expires_at=model.expires_at,
+        removed_at=model.removed_at,
+    )
+    block.created_at = model.created_at
+    return block
 
 
 def team_to_domain(model: TeamModel) -> Team:

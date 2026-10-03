@@ -14,8 +14,6 @@ import { APP_NAV_ITEMS, APP_SECONDARY_ITEMS } from "@/data/app-navigation";
 import { useSession } from "@/features/auth/session";
 import type { AuthenticatedUserOrganization } from "@/types/api";
 
-/** The label for the current route, derived from the navigation list so the
- * header cannot disagree with the sidebar. */
 function usePageLabel(): string {
   const pathname = usePathname();
   const all = [...APP_NAV_ITEMS, ...APP_SECONDARY_ITEMS];
@@ -55,8 +53,6 @@ export function AppHeader() {
   );
 }
 
-/** The brand, linking to the dashboard rather than the marketing site: inside the
- * application, "home" is the dashboard. */
 function LinkSlot() {
   return (
     <div className="app-topbar-brand">
@@ -74,8 +70,6 @@ function EnvironmentBadge() {
     </span>
   );
 }
-
-/* Workspace selector */
 
 function WorkspaceMenu({
   organizationName,
@@ -160,8 +154,6 @@ function WorkspaceMenu({
   );
 }
 
-/* Account menu */
-
 function AccountMenu({ onSignOut }: { onSignOut: () => void }) {
   const [open, setOpen] = useState(false);
   const menuId = useId();
@@ -239,8 +231,6 @@ function AccountMenu({ onSignOut }: { onSignOut: () => void }) {
   );
 }
 
-/* Shared menu surface */
-
 function MenuSurface({
   id,
   onClose,
@@ -253,8 +243,6 @@ function MenuSurface({
   const reduced = useReducedMotion();
   const ref = useRef<HTMLDivElement>(null);
 
-  // Move focus into the surface so a keyboard user is not left behind on a button
-  // whose panel has just appeared below them.
   useEffect(() => {
     ref.current?.querySelector<HTMLElement>("a, button")?.focus();
   }, []);
@@ -277,7 +265,6 @@ function MenuSurface({
   );
 }
 
-/* Close on Escape or on a click outside. */
 function useDismiss(ref: React.RefObject<HTMLElement | null>, close: () => void, open: boolean) {
   useEffect(() => {
     if (!open) return;

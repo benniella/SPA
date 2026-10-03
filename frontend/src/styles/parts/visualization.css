@@ -1,12 +1,5 @@
-/* Analysis visualization: source-frame surfaces, track selector, timeline. */
-
 .viz-frame-surface {
   display: block;
-  /* An <svg> with a viewBox but no width/height attribute has no intrinsic size
-     for 'width: 100%' to override, so it lays out at its viewBox dimensions and
-     forces the page to scroll sideways on a narrow screen. The aspect ratio is
-     set inline from the source-frame extent; a definite width and a maximum
-     height give it a real responsive box instead. */
   width: 100%;
   height: auto;
   max-height: 70vh;
@@ -14,11 +7,6 @@
   background-color: var(--viz-surface);
 }
 
-/* The panel sits inside the app shell's grid, whose implicit column is sized by
-   its widest child. An SVG with a viewBox reports an intrinsic width, so without
-   this the column grows to fit the surface and the page scrolls sideways on a
-   phone. 'grid-template-columns: minmax(0, 1fr)' pins the column to the
-   available width so the surface shrinks to it instead of the other way round. */
 .viz-panel {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -46,8 +34,6 @@
 .viz-track[data-selected="true"] {
   outline: none;
 }
-
-/* Track selector */
 
 .viz-track-selector {
   display: flex;
@@ -79,8 +65,6 @@
   color: var(--color-foreground);
 }
 
-/* Selected state is carried by the border and the weight as well as the colour,
-   so it does not depend on hue alone. */
 .viz-track-option[data-selected="true"] {
   border-color: var(--color-accent-line);
   background-color: var(--color-accent-subtle);
@@ -98,8 +82,6 @@
   letter-spacing: var(--tracking-label);
   color: var(--color-foreground-faint);
 }
-
-/* Activity timeline */
 
 .viz-timeline {
   display: flex;

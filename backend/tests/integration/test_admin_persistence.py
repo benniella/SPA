@@ -48,29 +48,32 @@ async def _seed_catalogue(session_factory) -> None:
     async with session_scope(session_factory) as session:
         privilege_ids: dict[str, uuid.UUID] = {}
         for name in PRIVILEGE_DESCRIPTIONS:
-            privilege_id = uuid.uuid4()
-            privilege_ids[name] = privilege_id
             await session.execute(
                 sa.text(
                     "INSERT INTO admin_privileges (id, name, description) "
-                    "VALUES (:id, :name, :description)"
+                    "VALUES (:id, :name, :description) "
+                    "ON CONFLICT (name) DO NOTHING"
                 ),
-                {"id": privilege_id, "name": name, "description": name},
+                {"id": uuid.uuid4(), "name": name, "description": name},
             )
+        for name in PRIVILEGE_DESCRIPTIONS:
+            privilege_ids[name] = await _catalogue_id(session, "admin_privileges", name)
         for role_name in ROLE_DESCRIPTIONS:
-            role_id = uuid.uuid4()
             await session.execute(
                 sa.text(
                     "INSERT INTO admin_roles (id, name, description) "
-                    "VALUES (:id, :name, :description)"
+                    "VALUES (:id, :name, :description) "
+                    "ON CONFLICT (name) DO NOTHING"
                 ),
-                {"id": role_id, "name": role_name, "description": role_name},
+                {"id": uuid.uuid4(), "name": role_name, "description": role_name},
             )
+            role_id = await _catalogue_id(session, "admin_roles", role_name)
             for privilege_name in ROLE_PRIVILEGES[role_name]:
                 await session.execute(
                     sa.text(
                         "INSERT INTO admin_role_privileges (id, role_id, privilege_id) "
-                        "VALUES (:id, :role_id, :privilege_id)"
+                        "VALUES (:id, :role_id, :privilege_id) "
+                        "ON CONFLICT (role_id, privilege_id) DO NOTHING"
                     ),
                     {
                         "id": uuid.uuid4(),
@@ -79,6 +82,13 @@ async def _seed_catalogue(session_factory) -> None:
                     },
                 )
         await session.commit()
+
+
+async def _catalogue_id(session, table: str, name: str) -> uuid.UUID:
+    result = await session.execute(
+        sa.text(f"SELECT id FROM {table} WHERE name = :name"), {"name": name}
+    )
+    return result.scalar_one()
 
 
 async def _make_user(session_factory) -> UserId:
@@ -99,7 +109,7 @@ async def _make_user(session_factory) -> UserId:
 
 
 @pytest.fixture
-async def seeded(session_factory):
+async def seeded(clean_database, session_factory):
     await _seed_catalogue(session_factory)
     return session_factory
 

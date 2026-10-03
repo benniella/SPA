@@ -16,6 +16,10 @@ from app.application.ports.admin import (
     AdminRepository,
     AdminRoleRepository,
 )
+from app.application.ports.configuration import (
+    IpBlockRepository,
+    PlatformSettingRepository,
+)
 from app.application.ports.repositories import (
     AnalysisRunRepository,
     MatchRepository,
@@ -48,6 +52,8 @@ class UnitOfWork(Protocol):
     admin_privileges: AdminPrivilegeRepository
     admin_invitations: AdminInvitationRepository
     admin_mfa: AdminMfaRepository
+    platform_settings: PlatformSettingRepository
+    ip_blocks: IpBlockRepository
     sessions: SessionRepository
     challenges: SecurityChallengeRepository
     otp_challenges: OtpChallengeRepository

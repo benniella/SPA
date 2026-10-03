@@ -23,6 +23,7 @@ from app.core.errors import ConflictError, NotFoundError, ValidationError
 from app.domain.admin.entities import (
     AdminIdentity,
     AdminInvitation,
+    AdminInvitationStatus,
     AdminPrivilege,
     AdminRole,
     AdminStatus,
@@ -41,6 +42,48 @@ class IssuedInvitation:
 
     invitation: AdminInvitation
     token: str
+
+
+@dataclass(frozen=True, slots=True)
+class InvitationSummary:
+    invitation: AdminInvitation
+    status: str
+
+
+async def list_invitations(
+    actor: AdminContext,
+    *,
+    invitations: AdminInvitationRepository,
+    limit: int = 50,
+    offset: int = 0,
+    status: str | None = None,
+    email: str | None = None,
+) -> list[InvitationSummary]:
+    actor.require(AdminPrivilege.ADMINS_READ)
+    _require_known_status(status)
+    address = _normalize_email(email) if email else None
+    found = await invitations.list(limit=limit, offset=offset, status=status, email=address)
+    return [
+        InvitationSummary(invitation=item, status=AdminInvitationStatus.of(item)) for item in found
+    ]
+
+
+async def count_invitations(
+    actor: AdminContext,
+    *,
+    invitations: AdminInvitationRepository,
+    status: str | None = None,
+    email: str | None = None,
+) -> int:
+    actor.require(AdminPrivilege.ADMINS_READ)
+    _require_known_status(status)
+    address = _normalize_email(email) if email else None
+    return await invitations.count(status=status, email=address)
+
+
+def _require_known_status(status: str | None) -> None:
+    if status is not None and status not in AdminInvitationStatus.ALLOWED:
+        raise ValidationError(f"Unknown invitation status: {status!r}.")
 
 
 async def create_invitation(

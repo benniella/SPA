@@ -1,10 +1,3 @@
-"""Account-security endpoints: sessions, contact details and security history.
-
-Everything here acts on the authenticated caller's own account. No route accepts
-a user identifier, so there is no parameter to tamper with in order to reach
-another account's sessions, phone number or security log.
-"""
-
 from __future__ import annotations
 
 import uuid

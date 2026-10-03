@@ -12,14 +12,16 @@ import uuid
 from datetime import date, datetime
 from typing import cast
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.domain.admin.entities import (
     AdminId,
     AdminIdentity,
     AdminInvitation,
+    AdminInvitationStatus,
     AdminMfaChallenge,
     AdminPrivilege,
     AdminRole,
@@ -41,6 +43,7 @@ from app.domain.security.entities import (
     SecurityEventType,
     Session,
 )
+from app.domain.security.network import IpBlock
 from app.domain.shared import (
     AnalysisRunId,
     JobId,
@@ -69,12 +72,14 @@ from app.infrastructure.database.models import (
     AdminRoleModel,
     AdminRolePrivilegeModel,
     AnalysisRunModel,
+    IpBlockModel,
     MatchModel,
     OrganizationMembershipModel,
     OrganizationModel,
     OtpChallengeModel,
     PerformanceMetricModel,
     PlatformAdminModel,
+    PlatformSettingModel,
     PlayerModel,
     ProcessingJobModel,
     ReportModel,
@@ -99,11 +104,64 @@ def _coerce_uuid(value: object) -> uuid.UUID:
     return value if isinstance(value, uuid.UUID) else uuid.UUID(str(value))
 
 
+# The audit surface covers every platform-administrative event, whether it acts on
+# the administrator directory ('ADMIN_') or on platform configuration and security
+# controls ('PLATFORM_'). Both are administrative audit records.
 _ADMIN_EVENT_TYPES = tuple(
     event_type
     for event_type in SecurityEventType.ALLOWED
-    if event_type.startswith("ADMIN_")
+    if event_type.startswith(
+        (SecurityEventType.ADMIN_EVENT_PREFIX, SecurityEventType.PLATFORM_EVENT_PREFIX)
+    )
 )
+
+
+def _administrative_event_conditions(
+    *,
+    event_type: str | None,
+    actor_id: object | None,
+    since: object | None,
+    until: object | None,
+) -> list[ColumnElement[bool]]:
+    """The SQL conditions that restrict an audit query to the requested events."""
+    conditions: list[ColumnElement[bool]] = [SecurityEventModel.event_type.in_(_ADMIN_EVENT_TYPES)]
+    if event_type is not None:
+        conditions.append(SecurityEventModel.event_type == str(event_type))
+    if actor_id is not None:
+        conditions.append(SecurityEventModel.user_id == _coerce_uuid(actor_id))
+    if since is not None:
+        conditions.append(SecurityEventModel.created_at >= since)
+    if until is not None:
+        conditions.append(SecurityEventModel.created_at <= until)
+    return conditions
+
+
+def _invitation_conditions(*, status: str | None, email: str | None) -> list[ColumnElement[bool]]:
+    """The SQL conditions for an invitation query. Status is derived, not stored."""
+    conditions: list[ColumnElement[bool]] = []
+    if email is not None:
+        conditions.append(AdminInvitationModel.email == email)
+    if status == AdminInvitationStatus.ACCEPTED:
+        conditions.append(AdminInvitationModel.accepted_at.is_not(None))
+    elif status == AdminInvitationStatus.REVOKED:
+        conditions.append(AdminInvitationModel.revoked_at.is_not(None))
+    elif status == AdminInvitationStatus.EXPIRED:
+        conditions.extend(
+            [
+                AdminInvitationModel.accepted_at.is_(None),
+                AdminInvitationModel.revoked_at.is_(None),
+                AdminInvitationModel.expires_at <= func.now(),
+            ]
+        )
+    elif status == AdminInvitationStatus.OUTSTANDING:
+        conditions.extend(
+            [
+                AdminInvitationModel.accepted_at.is_(None),
+                AdminInvitationModel.revoked_at.is_(None),
+                AdminInvitationModel.expires_at > func.now(),
+            ]
+        )
+    return conditions
 
 
 class SqlOrganizationRepository:
@@ -404,18 +462,40 @@ class SqlSecurityEventRepository:
         limit: int = 50,
         offset: int = 0,
         event_type: str | None = None,
+        actor_id: object | None = None,
+        since: object | None = None,
+        until: object | None = None,
     ) -> list[SecurityEvent]:
         statement = select(SecurityEventModel).where(
-            SecurityEventModel.event_type.in_(_ADMIN_EVENT_TYPES)
+            *_administrative_event_conditions(
+                event_type=event_type, actor_id=actor_id, since=since, until=until
+            )
         )
-        if event_type is not None:
-            statement = statement.where(SecurityEventModel.event_type == str(event_type))
         result = await self._session.execute(
             statement.order_by(SecurityEventModel.created_at.desc(), SecurityEventModel.id)
             .limit(limit)
             .offset(offset)
         )
         return [mappers.security_event_to_domain(model) for model in result.scalars()]
+
+    async def count_administrative(
+        self,
+        *,
+        event_type: str | None = None,
+        actor_id: object | None = None,
+        since: object | None = None,
+        until: object | None = None,
+    ) -> int:
+        statement = (
+            select(func.count())
+            .select_from(SecurityEventModel)
+            .where(
+                *_administrative_event_conditions(
+                    event_type=event_type, actor_id=actor_id, since=since, until=until
+                )
+            )
+        )
+        return int((await self._session.execute(statement)).scalar_one())
 
 
 class SqlTeamRepository:
@@ -1209,15 +1289,33 @@ class SqlAdminInvitationRepository:
         ).first()
         return self._to_domain(*row)[0] if row else None
 
-    async def list(self, *, limit: int = 50, offset: int = 0) -> list[AdminInvitation]:
-        result = await self._session.execute(
+    async def list(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        status: str | None = None,
+        email: str | None = None,
+    ) -> list[AdminInvitation]:
+        statement = (
             select(AdminInvitationModel, AdminRoleModel.name)
             .join(AdminRoleModel, AdminRoleModel.id == AdminInvitationModel.role_id)
-            .order_by(AdminInvitationModel.created_at.desc())
+            .where(*_invitation_conditions(status=status, email=email))
+        )
+        result = await self._session.execute(
+            statement.order_by(AdminInvitationModel.created_at.desc(), AdminInvitationModel.id)
             .limit(limit)
             .offset(offset)
         )
         return [self._to_domain(model, role_name)[0] for model, role_name in result.all()]
+
+    async def count(self, *, status: str | None = None, email: str | None = None) -> int:
+        statement = (
+            select(func.count())
+            .select_from(AdminInvitationModel)
+            .where(*_invitation_conditions(status=status, email=email))
+        )
+        return int((await self._session.execute(statement)).scalar_one())
 
     async def update(self, invitation: AdminInvitation) -> None:
         model = await self._session.get(AdminInvitationModel, _coerce_uuid(invitation.id))
@@ -1369,5 +1467,77 @@ class SqlAdminMfaRepository:
             update(AdminMfaChallengeModel)
             .where(AdminMfaChallengeModel.id == _coerce_uuid(challenge_id))
             .values(satisfied_at=func.now())
+        )
+        await self._session.flush()
+
+
+class SqlPlatformSettingRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get(self, key: str) -> object | None:
+        model = await self._session.get(PlatformSettingModel, key)
+        return model.value if model else None
+
+    async def list(self) -> dict[str, object]:
+        result = await self._session.execute(select(PlatformSettingModel))
+        return {model.key: model.value for model in result.scalars()}
+
+    async def set(self, key: str, value: object, *, changed_by: object | None) -> None:
+        existing = await self._session.get(PlatformSettingModel, key)
+        if existing is None:
+            self._session.add(
+                PlatformSettingModel(
+                    key=key,
+                    value=value,
+                    changed_by=_coerce_uuid(changed_by) if changed_by else None,
+                )
+            )
+        else:
+            existing.value = value
+            existing.changed_by = _coerce_uuid(changed_by) if changed_by else None
+        await self._session.flush()
+
+    async def delete(self, key: str) -> None:
+        await self._session.execute(
+            delete(PlatformSettingModel).where(PlatformSettingModel.key == key)
+        )
+        await self._session.flush()
+
+
+class SqlIpBlockRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def add(self, block: IpBlock) -> None:
+        self._session.add(mappers.ip_block_to_model(block))
+        await self._session.flush()
+
+    async def get(self, block_id: object) -> IpBlock | None:
+        model = await self._session.get(IpBlockModel, _coerce_uuid(block_id))
+        return mappers.ip_block_to_domain(model) if model else None
+
+    async def list_active(self) -> list[IpBlock]:
+        result = await self._session.execute(
+            select(IpBlockModel)
+            .where(
+                IpBlockModel.removed_at.is_(None),
+                or_(IpBlockModel.expires_at.is_(None), IpBlockModel.expires_at > func.now()),
+            )
+            .order_by(IpBlockModel.created_at.desc())
+        )
+        return [mappers.ip_block_to_domain(model) for model in result.scalars()]
+
+    async def list_all(self) -> list[IpBlock]:
+        result = await self._session.execute(
+            select(IpBlockModel).order_by(IpBlockModel.created_at.desc())
+        )
+        return [mappers.ip_block_to_domain(model) for model in result.scalars()]
+
+    async def update(self, block: IpBlock) -> None:
+        await self._session.execute(
+            update(IpBlockModel)
+            .where(IpBlockModel.id == _coerce_uuid(block.id))
+            .values(removed_at=block.removed_at)
         )
         await self._session.flush()

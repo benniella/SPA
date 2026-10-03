@@ -44,7 +44,9 @@ class FakeSessionRepository:
     async def update(self, session: Session) -> None:
         self._by_id[session.id] = session
 
-    async def revoke_all_for_user(self, user_id: UserId, *, except_session_id: object = None) -> int:
+    async def revoke_all_for_user(
+        self, user_id: UserId, *, except_session_id: object = None
+    ) -> int:
         revoked = 0
         for session in self._by_id.values():
             if session.user_id != user_id or session.is_revoked:
@@ -81,9 +83,7 @@ class FakeChallengeRepository:
         return invalidated
 
     async def latest_for_user(self, user_id: UserId, kind: str) -> Challenge | None:
-        matching = [
-            c for c in self._challenges if c.user_id == user_id and c.kind == kind
-        ]
+        matching = [c for c in self._challenges if c.user_id == user_id and c.kind == kind]
         return matching[-1] if matching else None
 
 
@@ -95,9 +95,7 @@ class FakeOtpChallengeRepository:
         self._challenges.append(challenge)
 
     async def latest_for_user(self, user_id: UserId, purpose: str) -> OtpChallenge | None:
-        matching = [
-            c for c in self._challenges if c.user_id == user_id and c.purpose == purpose
-        ]
+        matching = [c for c in self._challenges if c.user_id == user_id and c.purpose == purpose]
         return matching[-1] if matching else None
 
     async def update(self, challenge: OtpChallenge) -> None:
@@ -106,7 +104,11 @@ class FakeOtpChallengeRepository:
     async def invalidate_active(self, user_id: UserId, purpose: str) -> int:
         invalidated = 0
         for challenge in self._challenges:
-            if challenge.user_id == user_id and challenge.purpose == purpose and challenge.is_usable():
+            if (
+                challenge.user_id == user_id
+                and challenge.purpose == purpose
+                and challenge.is_usable()
+            ):
                 challenge.consume()
                 invalidated += 1
         return invalidated
@@ -143,15 +145,38 @@ class FakeSecurityEventRepository:
         limit: int = 50,
         offset: int = 0,
         event_type: str | None = None,
+        actor_id: object | None = None,
+        since: object | None = None,
+        until: object | None = None,
     ) -> list[SecurityEvent]:
         matching = [
             event
             for event in self.events
-            if str(event.event_type).startswith("ADMIN_")
+            if str(event.event_type).startswith(("ADMIN_", "PLATFORM_"))
             and (event_type is None or event.event_type == event_type)
+            and (actor_id is None or event.user_id == actor_id)
+            and (since is None or event.created_at >= since)  # type: ignore[operator]
+            and (until is None or event.created_at <= until)  # type: ignore[operator]
         ]
         matching.sort(key=lambda event: event.created_at, reverse=True)
         return matching[offset : offset + limit]
+
+    async def count_administrative(
+        self,
+        *,
+        event_type: str | None = None,
+        actor_id: object | None = None,
+        since: object | None = None,
+        until: object | None = None,
+    ) -> int:
+        matching = await self.list_administrative(
+            limit=len(self.events),
+            event_type=event_type,
+            actor_id=actor_id,
+            since=since,
+            until=until,
+        )
+        return len(matching)
 
     async def count_recent(self, user_id: UserId | None, event_type: str, *, since: object) -> int:
         return sum(

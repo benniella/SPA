@@ -31,7 +31,7 @@ from app.domain.shared import (
 class MetricScope:
     """What a metric is attributed to.
 
-    A constrained string so that new subjects (a unit, a possession phase) can
+    A constrained string so that new subjects (a unit, a possession interval) can
     be added without a database enum migration.
     """
 
