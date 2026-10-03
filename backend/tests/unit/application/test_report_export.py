@@ -286,4 +286,3 @@ class TestGetReportExport:
                 user_id=user_id,
                 report_id=ReportId(new_id()),
             )
-
